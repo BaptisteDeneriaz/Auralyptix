@@ -65,21 +65,13 @@ export default function Layout({ children, currentPageName }) {
               </button>
             </div>
 
-            {/* CTA Buttons */}
-            <div className="flex items-center gap-3">
-              <Button 
-                className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-xl shadow-lg shadow-green-500/30 px-4"
-                onClick={() => alert('✅ Test réussi ! Les modifications fonctionnent !')}
-              >
-                🧪 Test
+            {/* CTA Button */}
+            <Link to={createPageUrl('Generator')}>
+              <Button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-xl shadow-lg shadow-blue-500/30">
+                <Sparkles className="w-4 h-4 mr-2" />
+                Créer un edit
               </Button>
-              <Link to={createPageUrl('Generator')}>
-                <Button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-xl shadow-lg shadow-blue-500/30">
-                  <Sparkles className="w-4 h-4 mr-2" />
-                  Créer un edit
-                </Button>
-              </Link>
-            </div>
+            </Link>
           </div>
         </div>
       </nav>
