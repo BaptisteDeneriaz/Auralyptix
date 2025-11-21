@@ -818,8 +818,6 @@ app.post('/api/generate', async (req, res) => {
     custom_prompt,
     duration_seconds = 30,
     audio_segment = {}
-    duration_seconds = 30,
-    audio_segment = {}
   } = req.body;
 
   if (!title || !theme || !style || !music_url) {
