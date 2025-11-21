@@ -20,6 +20,8 @@ export default function Generator() {
     customPrompt: '',
     referenceUrl: '',
     brief: '',
+    scenePlan: '',
+    videoMode: 'upload',
     durationSeconds: 30,
     audioSelection: {
       start: 0,
@@ -40,6 +42,8 @@ export default function Generator() {
         theme: formData.theme,
         style: formData.style,
         custom_prompt: formData.brief || formData.customPrompt,
+        video_mode: formData.videoMode,
+        scene_plan: formData.scenePlan,
         duration_seconds: formData.durationSeconds,
         audio_segment: {
           start: formData.audioSelection.start,

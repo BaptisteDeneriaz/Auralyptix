@@ -64,17 +64,53 @@ export default function UploadStep({
   const handleMusicUpload = async (file) => {
     if (!file) return;
     
-    // Check if it's an audio file
-    if (!file.type.startsWith('audio/')) {
-      alert('Veuillez sélectionner un fichier audio');
+    // Accepter audio ET vidéo (on extraira l'audio de la vidéo)
+    const isAudio = file.type.startsWith('audio/');
+    const isVideo = file.type.startsWith('video/');
+    
+    if (!isAudio && !isVideo) {
+      alert('Veuillez sélectionner un fichier audio ou vidéo');
       return;
     }
 
     setUploadingMusic(true);
     try {
-      const duration = await handleLocalAudioMetadata(file);
+      // Calculer la durée localement d'abord
+      let duration = null;
+      if (isAudio) {
+        duration = await handleLocalAudioMetadata(file);
+      } else if (isVideo) {
+        // Pour les vidéos, essayer d'extraire la durée
+        duration = await new Promise((resolve) => {
+          try {
+            const objectUrl = URL.createObjectURL(file);
+            const video = document.createElement('video');
+            video.preload = 'metadata';
+            video.src = objectUrl;
+            video.onloadedmetadata = () => {
+              const dur = video.duration || 0;
+              URL.revokeObjectURL(objectUrl);
+              resolve(dur);
+            };
+            video.onerror = () => {
+              URL.revokeObjectURL(objectUrl);
+              resolve(null);
+            };
+          } catch (err) {
+            console.error('Video metadata error', err);
+            resolve(null);
+          }
+        });
+      }
+
       const uploaded = await api.uploadFile(file);
-      const roundedDuration = duration ? Math.round(duration) : null;
+      
+      // Utiliser la durée du serveur si disponible, sinon celle calculée localement
+      const serverDuration = uploaded.duration_seconds;
+      const roundedDuration = serverDuration 
+        ? Math.round(serverDuration) 
+        : (duration ? Math.round(duration) : null);
+      
       setMusicData({
         file_url: uploaded.file_url,
         public_url: uploaded.public_url,
@@ -96,8 +132,8 @@ export default function UploadStep({
         });
       }
     } catch (error) {
-      alert('Erreur lors de l\'upload du fichier');
-      console.error(error);
+      console.error('Upload error:', error);
+      alert('Erreur lors de l\'upload du fichier: ' + (error.message || 'Erreur inconnue'));
     } finally {
       setUploadingMusic(false);
     }
@@ -183,7 +219,7 @@ export default function UploadStep({
         >
           <input
             type="file"
-            accept="audio/*"
+            accept="audio/*,video/*"
             onChange={(e) => handleMusicUpload(e.target.files[0])}
             className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
             disabled={uploadingMusic}
@@ -198,7 +234,8 @@ export default function UploadStep({
               <p className="text-white font-semibold mb-1">
                 {uploadingMusic ? 'Upload en cours...' : 'Clique ou glisse un fichier'}
               </p>
-              <p className="text-gray-400 text-sm">MP3, WAV, M4A jusqu'à 50MB</p>
+              <p className="text-gray-400 text-sm">Audio (MP3, WAV, M4A) ou Vidéo (MP4, MOV) jusqu'à 100MB</p>
+              <p className="text-gray-500 text-xs mt-1">L'audio sera extrait automatiquement des vidéos</p>
             </div>
           </div>
         </div>

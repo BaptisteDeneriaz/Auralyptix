@@ -308,62 +308,193 @@ async function transcribeAudio(audioUrl) {
   }
 }
 
-async function detectBeats() {
-  await sleep(1000);
-  const bpm = 110 + Math.floor(Math.random() * 30);
-  const duration = 75 + Math.floor(Math.random() * 20);
-  const beatInterval = 60 / bpm;
-  const beats = [];
-  for (let i = 0; i < duration; i += beatInterval) {
-    beats.push(Number(i.toFixed(2)));
+async function detectBeats(audioUrl, audioSegment = null, targetDuration = null) {
+  // Si pas d'URL audio publique, retourner une estimation basée sur la durée
+  if (!audioUrl || isLocalUrl(audioUrl)) {
+    const duration = targetDuration || 30;
+    const estimatedBpm = 120; // BPM moyen par défaut
+    const beatInterval = 60 / estimatedBpm;
+    const beats = [];
+    for (let i = 0; i < duration; i += beatInterval) {
+      beats.push(Number(i.toFixed(2)));
+    }
+    return {
+      bpm: estimatedBpm,
+      duration,
+      beats,
+      sections: [
+        { label: 'intro', start: 0, end: Math.min(10, duration * 0.15) },
+        { label: 'build', start: Math.min(10, duration * 0.15), end: Math.min(30, duration * 0.4) },
+        { label: 'drop', start: Math.min(30, duration * 0.4), end: Math.min(55, duration * 0.85) },
+        { label: 'outro', start: Math.min(55, duration * 0.85), end: duration }
+      ],
+      note: 'Détection basée sur estimation (URL audio non accessible)'
+    };
   }
+
+  // Utiliser AssemblyAI pour analyser l'audio si disponible
+  if (assemblyEnabled) {
+    try {
+      // AssemblyAI peut analyser l'audio et détecter les beats via l'API
+      // Pour l'instant, on utilise la transcription existante pour estimer
+      const transcriptData = await transcribeAudio(audioUrl);
+      
+      // Estimer BPM basé sur les mots détectés et leur timing
+      let estimatedBpm = 120;
+      if (transcriptData.words && transcriptData.words.length > 0) {
+        const words = transcriptData.words;
+        const firstWord = words[0];
+        const lastWord = words[words.length - 1];
+        const totalDuration = (lastWord.end / 1000) - (firstWord.start / 1000);
+        const wordCount = words.length;
+        
+        // Estimer BPM basé sur la densité des mots
+        if (totalDuration > 0) {
+          const wordsPerSecond = wordCount / totalDuration;
+          // Musique rapide = plus de mots par seconde
+          estimatedBpm = Math.max(80, Math.min(160, 90 + (wordsPerSecond * 15)));
+        }
+      }
+
+      const duration = targetDuration || (audioSegment?.end ? audioSegment.end - (audioSegment.start || 0) : 30);
+      const beatInterval = 60 / estimatedBpm;
+      const beats = [];
+      
+      // Générer les beats en respectant le segment audio
+      const startTime = audioSegment?.start || 0;
+      const endTime = audioSegment?.end || duration;
+      const segmentDuration = endTime - startTime;
+      
+      for (let i = 0; i < segmentDuration; i += beatInterval) {
+        const beatTime = startTime + i;
+        if (beatTime <= endTime) {
+          beats.push(Number(beatTime.toFixed(2)));
+        }
+      }
+
+      // Ajuster les sections selon la durée réelle
+      const introEnd = Math.min(segmentDuration * 0.15, 10);
+      const buildEnd = Math.min(segmentDuration * 0.4, 30);
+      const dropEnd = Math.min(segmentDuration * 0.85, segmentDuration - 5);
+
+      return {
+        bpm: Math.round(estimatedBpm),
+        duration: segmentDuration,
+        beats,
+        sections: [
+          { label: 'intro', start: startTime, end: startTime + introEnd },
+          { label: 'build', start: startTime + introEnd, end: startTime + buildEnd },
+          { label: 'drop', start: startTime + buildEnd, end: startTime + dropEnd },
+          { label: 'outro', start: startTime + dropEnd, end: endTime }
+        ],
+        note: 'Détection basée sur analyse AssemblyAI'
+      };
+    } catch (error) {
+      console.error('Beat detection via AssemblyAI failed:', error.message);
+    }
+  }
+
+  // Fallback: estimation simple
+  const duration = targetDuration || 30;
+  const estimatedBpm = 120;
+  const beatInterval = 60 / estimatedBpm;
+  const beats = [];
+  const startTime = audioSegment?.start || 0;
+  const endTime = audioSegment?.end || duration;
+  
+  for (let i = 0; i < (endTime - startTime); i += beatInterval) {
+    beats.push(Number((startTime + i).toFixed(2)));
+  }
+
   return {
-    bpm,
-    duration,
+    bpm: estimatedBpm,
+    duration: endTime - startTime,
     beats,
     sections: [
-      { label: 'intro', start: 0, end: 10 },
-      { label: 'build', start: 10, end: 30 },
-      { label: 'drop', start: 30, end: 55 },
-      { label: 'outro', start: 55, end: duration }
-    ]
+      { label: 'intro', start: startTime, end: Math.min(startTime + 10, endTime * 0.15) },
+      { label: 'build', start: Math.min(startTime + 10, endTime * 0.15), end: Math.min(startTime + 30, endTime * 0.4) },
+      { label: 'drop', start: Math.min(startTime + 30, endTime * 0.4), end: Math.min(startTime + 55, endTime * 0.85) },
+      { label: 'outro', start: Math.min(startTime + 55, endTime * 0.85), end: endTime }
+    ],
+    note: 'Détection basée sur estimation par défaut'
   };
 }
 
-async function fetchClips(theme) {
+async function fetchClips(theme, count = 8) {
+  const searchQuery = theme || 'cinematic';
+  
   if (!pexelsEnabled) {
-    return Array.from({ length: 6 }).map((_, idx) => ({
+    console.log('Pexels non configuré, retour de clips placeholder');
+    return Array.from({ length: Math.min(count, 6) }).map((_, idx) => ({
       id: `placeholder-${idx}`,
       url: `https://videos.pexels.com/video-${1000 + idx}`,
       thumbnail: `https://images.pexels.com/photos/${1000 + idx}/pexels-photo.jpeg`,
       duration: 6 + (idx % 4),
-      description: `${theme} clip ${idx + 1}`
+      description: `${searchQuery} clip ${idx + 1}`,
+      provider: 'placeholder'
     }));
   }
 
-  const response = await fetch(
-    `https://api.pexels.com/videos/search?query=${encodeURIComponent(
-      theme || 'cinematic'
-    )}&orientation=portrait&size=large&per_page=10`,
-    {
-      headers: {
-        Authorization: process.env.PEXELS_API_KEY
+  try {
+    const response = await fetch(
+      `https://api.pexels.com/videos/search?query=${encodeURIComponent(
+        searchQuery
+      )}&orientation=portrait&size=large&per_page=${Math.min(count, 15)}`,
+      {
+        headers: {
+          Authorization: process.env.PEXELS_API_KEY
+        }
       }
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Pexels API error:', response.status, errorText);
+      // Fallback vers placeholder en cas d'erreur
+      return fetchClips(null, count);
     }
-  );
 
-  if (!response.ok) {
-    return fetchClips(null);
+    const data = await response.json();
+    
+    if (!data.videos || data.videos.length === 0) {
+      console.log('Aucun clip Pexels trouvé pour:', searchQuery);
+      return fetchClips(null, count);
+    }
+
+    // Sélectionner les meilleurs clips (portrait, bonne qualité)
+    const clips = data.videos
+      .filter(video => {
+        // Préférer les vidéos portrait
+        const portraitFile = video.video_files?.find(
+          file => file.quality === 'hd' || file.quality === 'sd'
+        );
+        return portraitFile && video.duration > 3; // Au moins 3 secondes
+      })
+      .slice(0, count)
+      .map((video) => {
+        // Trouver le meilleur fichier vidéo (HD préféré, sinon SD)
+        const videoFile = video.video_files?.find(f => f.quality === 'hd') ||
+                         video.video_files?.find(f => f.quality === 'sd') ||
+                         video.video_files?.[0];
+        
+        return {
+          id: `pexels-${video.id}`,
+          url: videoFile?.link || video.video_files?.[0]?.link,
+          duration: video.duration,
+          thumbnail: video.image,
+          description: video.user?.name || searchQuery,
+          provider: 'pexels',
+          width: videoFile?.width,
+          height: videoFile?.height
+        };
+      });
+
+    console.log(`Trouvé ${clips.length} clips Pexels pour: ${searchQuery}`);
+    return clips.length > 0 ? clips : fetchClips(null, count);
+  } catch (error) {
+    console.error('Erreur lors de la recherche Pexels:', error.message);
+    return fetchClips(null, count);
   }
-
-  const data = await response.json();
-  return (data.videos || []).slice(0, 8).map((video) => ({
-    id: `pexels-${video.id}`,
-    url: video.video_files?.[0]?.link,
-    duration: video.duration,
-    thumbnail: video.image,
-    description: video.user?.name || 'Pexels'
-  }));
 }
 
 async function uploadPlaceholderVideo(editId) {
@@ -456,10 +587,17 @@ async function runGenerationJob(jobId, payload) {
       transcribeAudio(payload.musicPublicUrl || payload.musicUrl)
     );
 
-    const beats = await runStep('beat_detection', detectBeats);
-    const clips = await runStep('clip_scouting', () =>
-      fetchClips(payload.theme)
+    const beats = await runStep('beat_detection', () => 
+      detectBeats(
+        payload.musicPublicUrl || payload.musicUrl,
+        audioSegment,
+        targetDuration
+      )
     );
+    const clips = await runStep('clip_scouting', async () => {
+      const clipCount = Math.ceil((targetDuration || 30) / 5); // ~1 clip toutes les 5 secondes
+      return fetchClips(payload.theme, Math.min(clipCount, 12));
+    });
 
     await runStep('style_transfer', async () => {
       await sleep(400);
@@ -473,10 +611,32 @@ async function runGenerationJob(jobId, payload) {
 
     const videoResult = await runStep('editing', async () => {
       await sleep(1500);
+      
+      // Utiliser la durée cible ou la durée détectée
+      const finalDuration = targetDuration || beats.duration || 30;
+      
+      // Générer les sous-titres avec timestamps réels
+      const subtitles = (transcription.words || [])
+        .filter(word => {
+          if (!audioSegment) return true;
+          const wordStart = word.start / 1000; // Convertir ms en secondes
+          return wordStart >= audioSegment.start && 
+                 (!audioSegment.end || wordStart <= audioSegment.end);
+        })
+        .slice(0, Math.min(50, Math.floor(finalDuration / 2))) // ~1 sous-titre toutes les 2 secondes
+        .map(word => ({
+          text: word.text,
+          start: word.start / 1000,
+          end: word.end / 1000,
+          confidence: word.confidence
+        }));
+
       return {
-        duration: targetDuration,
+        duration: finalDuration,
         segments: beats.sections,
-        subtitles: transcription.words?.slice(0, 40) ?? []
+        subtitles,
+        clip_count: clips.length,
+        bpm: beats.bpm
       };
     });
 
@@ -493,7 +653,11 @@ async function runGenerationJob(jobId, payload) {
       video_url: uploadResult.secure_url,
       thumbnail_url: uploadResult.thumbnail,
       provider: uploadResult.provider,
-      completed_date: new Date().toISOString()
+      completed_date: new Date().toISOString(),
+      bpm: videoResult.bpm,
+      clip_count: videoResult.clip_count,
+      transcription_text: transcription.text || '',
+      transcription_summary: transcription.summary || []
     });
 
     await updateJob(jobId, {
@@ -544,7 +708,9 @@ app.get('/api/health', (_req, res) => {
       assemblyai: assemblyEnabled ? 'configured' : 'disabled',
       cloudinary: cloudinaryEnabled ? 'configured' : 'disabled',
       pexels: pexelsEnabled ? 'configured' : 'disabled'
-    }
+    },
+    environment: process.env.NODE_ENV || 'development',
+    timestamp: new Date().toISOString()
   });
 });
 
@@ -557,18 +723,21 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
     let fileUrl = `${BASE_URL}/uploads/${req.file.filename}`;
     let publicUrl = fileUrl;
     let thumbnail = null;
+    let duration = null;
+
+    const isVideo = req.file.mimetype.startsWith('video/');
+    const isAudio = req.file.mimetype.startsWith('audio/');
+    const resourceType = isVideo ? 'video' : isAudio ? 'raw' : 'auto';
 
     // Si Cloudinary est configuré, upload directement
     if (cloudinaryEnabled) {
-      const isVideo = req.file.mimetype.startsWith('video/');
-      const isAudio = req.file.mimetype.startsWith('audio/');
-      const resourceType = isVideo ? 'video' : isAudio ? 'raw' : 'auto';
-
       const uploadOptions = {
         resource_type: resourceType,
         folder: isVideo ? 'autoedit/uploads/videos' : isAudio ? 'autoedit/uploads/audio' : 'autoedit/uploads',
         public_id: `${Date.now()}-${req.file.originalname.replace(/\.[^/.]+$/, '')}`,
-        overwrite: false
+        overwrite: false,
+        // Pour les vidéos et audio, récupérer la durée
+        ...(isVideo || isAudio ? { eager_async: true } : {})
       };
 
       // Upload vers Cloudinary
@@ -577,9 +746,25 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
       publicUrl = result.secure_url;
       fileUrl = result.secure_url;
 
+      // Récupérer la durée depuis Cloudinary
+      if (result.duration) {
+        duration = Math.round(result.duration);
+      } else if (isVideo || isAudio) {
+        // Essayer de récupérer les infos depuis l'API Cloudinary
+        try {
+          const info = await cloudinary.api.resource(result.public_id, {
+            resource_type: resourceType
+          });
+          if (info.duration) {
+            duration = Math.round(info.duration);
+          }
+        } catch (err) {
+          console.warn('Impossible de récupérer la durée depuis Cloudinary:', err.message);
+        }
+      }
+
       // Générer une thumbnail si c'est une vidéo
       if (isVideo && result.secure_url) {
-        // Cloudinary génère automatiquement une thumbnail pour les vidéos
         const videoId = result.public_id;
         thumbnail = `https://res.cloudinary.com/${process.env.CLOUDINARY_CLOUD_NAME}/video/upload/so_0/${videoId}.jpg`;
       }
@@ -590,6 +775,10 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
       } catch (err) {
         console.warn('Impossible de supprimer le fichier local:', err.message);
       }
+    } else {
+      // En local, essayer d'extraire la durée pour les fichiers audio/vidéo
+      // Note: Pour une vraie extraction, il faudrait utiliser ffmpeg ou une lib audio
+      // Pour l'instant, on retourne null et le frontend le calculera
     }
 
     res.json({
@@ -598,7 +787,8 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
       name: req.file.originalname,
       size: req.file.size,
       mime_type: req.file.mimetype,
-      ...(thumbnail && { thumbnail })
+      ...(thumbnail && { thumbnail }),
+      ...(duration !== null && { duration_seconds: duration })
     });
   } catch (error) {
     console.error('Erreur lors de l\'upload:', error);
@@ -628,10 +818,15 @@ app.post('/api/generate', async (req, res) => {
     custom_prompt,
     duration_seconds = 30,
     audio_segment = {}
+    duration_seconds = 30,
+    audio_segment = {}
   } = req.body;
 
   if (!title || !theme || !style || !music_url) {
-    return res.status(400).json({ message: 'Champs requis manquants' });
+    return res.status(400).json({ 
+      message: 'Champs requis manquants',
+      required: ['title', 'theme', 'style', 'music_url']
+    });
   }
 
   const editId = crypto.randomUUID();
