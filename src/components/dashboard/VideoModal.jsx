@@ -3,9 +3,9 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X, Download, Share2, Copy, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-export default function VideoModal({ edit, isOpen, onClose }) {
+export default function VideoModal({ montage, isOpen, onClose }) {
   const copyLink = () => {
-    navigator.clipboard.writeText(window.location.origin + '/edit/' + edit.id);
+    navigator.clipboard.writeText(window.location.origin + '/montage/' + montage.id);
     alert('Lien copié !');
   };
 
@@ -29,8 +29,8 @@ export default function VideoModal({ edit, isOpen, onClose }) {
             {/* Header */}
             <div className="flex items-center justify-between p-6 border-b border-white/10">
               <div>
-                <h2 className="text-2xl font-bold text-white mb-1">{edit.title}</h2>
-                <p className="text-gray-400 text-sm">Thème: {edit.theme} • Style: {edit.style}</p>
+                <h2 className="text-2xl font-bold text-white mb-1">{montage.title}</h2>
+                <p className="text-gray-400 text-sm">Thème: {montage.theme} • Style: {montage.style}</p>
               </div>
               <button
                 onClick={onClose}
@@ -42,10 +42,10 @@ export default function VideoModal({ edit, isOpen, onClose }) {
 
             {/* Video player */}
             <div className="relative aspect-video bg-black">
-              {edit.video_url ? (
+              {montage.video_url ? (
                 <img 
-                  src={edit.video_url} 
-                  alt={edit.title}
+                  src={montage.video_url} 
+                  alt={montage.title}
                   className="w-full h-full object-contain"
                 />
               ) : (
@@ -64,8 +64,8 @@ export default function VideoModal({ edit, isOpen, onClose }) {
             <div className="p-6 border-t border-white/10">
               <div className="flex flex-wrap gap-3">
                 <a 
-                  href={edit.video_url}
-                  download={`${edit.title}.mp4`}
+                  href={montage.video_url}
+                  download={`${montage.title}.mp4`}
                   className="flex-1 min-w-[200px]"
                 >
                   <Button className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white">
@@ -93,16 +93,16 @@ export default function VideoModal({ edit, isOpen, onClose }) {
               <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-4 p-4 rounded-xl bg-white/5">
                 <div>
                   <p className="text-gray-400 text-xs mb-1">Durée</p>
-                  <p className="text-white font-semibold">{edit.duration}s</p>
+                  <p className="text-white font-semibold">{montage.duration}s</p>
                 </div>
                 <div>
                   <p className="text-gray-400 text-xs mb-1">Style</p>
-                  <p className="text-white font-semibold capitalize">{edit.style}</p>
+                  <p className="text-white font-semibold capitalize">{montage.style}</p>
                 </div>
                 <div>
                   <p className="text-gray-400 text-xs mb-1">Créé le</p>
                   <p className="text-white font-semibold">
-                    {new Date(edit.created_date).toLocaleDateString('fr-FR')}
+                    {new Date(montage.created_date).toLocaleDateString('fr-FR')}
                   </p>
                 </div>
                 <div>

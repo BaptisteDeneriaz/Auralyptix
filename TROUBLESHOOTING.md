@@ -64,3 +64,4 @@ Dans IONOS → Domaines & SSL → Vérifie que ton domaine pointe bien vers le b
 
 Si IONOS utilise Nginx ou si .htaccess ne fonctionne pas, il faut configurer le serveur différemment. Contacte le support IONOS pour activer le routing SPA.
 
+

@@ -7,7 +7,7 @@ const steps = [
     number: "01",
     icon: Upload,
     title: "Upload ta musique",
-    description: "Télécharge la musique que tu veux utiliser pour ton edit. N'importe quel format audio.",
+    description: "Télécharge la musique que tu veux utiliser pour ton montage. N'importe quel format audio.",
     color: "from-blue-500 to-cyan-500"
   },
   {
@@ -20,7 +20,7 @@ const steps = [
   {
     number: "03",
     icon: Download,
-    title: "Télécharge ton edit",
+    title: "Télécharge ton montage",
     description: "L'IA génère ton montage en quelques secondes. Télécharge-le et partage-le directement !",
     color: "from-pink-500 to-orange-500"
   }
@@ -48,7 +48,7 @@ export default function HowItWorksSection() {
             Comment ça marche ?
           </h2>
           <p className="text-xl text-gray-400 max-w-2xl mx-auto">
-            Trois étapes simples pour créer des edits professionnels
+            Trois étapes simples pour créer des montages professionnels
           </p>
         </motion.div>
 

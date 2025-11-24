@@ -13,19 +13,19 @@ const faqs = [
   },
   {
     question: "Est-ce vraiment gratuit ?",
-    answer: "Oui ! Le plan Starter est 100% gratuit et te permet de créer jusqu'à 5 edits par mois en qualité HD. C'est parfait pour tester l'outil et voir si ça correspond à tes besoins avant de passer à un plan payant."
+    answer: "Oui ! Le plan Starter est 100% gratuit et te permet de créer jusqu'à 5 montages par mois en qualité HD. C'est parfait pour tester l'outil et voir si ça correspond à tes besoins avant de passer à un plan payant."
   },
   {
     question: "Quelles plateformes sont supportées ?",
-    answer: "Auralyptix optimise automatiquement tes edits pour TikTok, Instagram Reels et YouTube Shorts. Le format vertical 9:16 est utilisé par défaut et la qualité d'export est adaptée aux exigences de chaque plateforme."
+    answer: "Auralyptix optimise automatiquement tes montages pour TikTok, Instagram Reels et YouTube Shorts. Le format vertical 9:16 est utilisé par défaut et la qualité d'export est adaptée aux exigences de chaque plateforme."
   },
   {
-    question: "Combien de temps prend la génération d'un edit ?",
-    answer: "En moyenne, l'IA génère ton edit en 10 à 30 secondes selon la longueur de ta musique et la complexité des effets demandés. Les abonnés Unlimited bénéficient d'une priorité de rendu pour un traitement encore plus rapide."
+    question: "Combien de temps prend la génération d'un montage ?",
+    answer: "En moyenne, l'IA génère ton montage en 10 à 30 secondes selon la longueur de ta musique et la complexité des effets demandés. Les abonnés Unlimited bénéficient d'une priorité de rendu pour un traitement encore plus rapide."
   },
   {
-    question: "Puis-je modifier l'edit après génération ?",
-    answer: "Pour le moment, l'IA génère un edit final optimisé. Si le résultat ne te convient pas, tu peux relancer la génération avec des paramètres différents. Un éditeur manuel est prévu dans les futures mises à jour."
+    question: "Puis-je modifier le montage après génération ?",
+    answer: "Pour le moment, l'IA génère un montage final optimisé. Si le résultat ne te convient pas, tu peux relancer la génération avec des paramètres différents. Un éditeur manuel est prévu dans les futures mises à jour."
   }
 ];
 

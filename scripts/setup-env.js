@@ -58,3 +58,4 @@ console.log('   - FTP_PASSWORD (ton mot de passe IONOS)');
 console.log('   - CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET');
 console.log('2. Ouvre .env.production et remplace l\'URL par celle de ton backend Render\n');
 
+

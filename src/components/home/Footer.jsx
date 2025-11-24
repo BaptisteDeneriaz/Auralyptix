@@ -24,7 +24,7 @@ export default function Footer() {
               <span className="text-xl font-bold text-white">Auralyptix</span>
             </div>
             <p className="text-gray-400 text-sm leading-relaxed">
-              Crée des edits professionnels en quelques secondes grâce à l'intelligence artificielle.
+              Crée des montages professionnels en quelques secondes grâce à l'intelligence artificielle.
             </p>
           </div>
 
@@ -143,7 +143,7 @@ export default function Footer() {
               <Youtube className="w-5 h-5 text-gray-400 group-hover:text-red-400 transition-colors" />
             </a>
             <a 
-              href="mailto:contact@autoedit.ai" 
+              href="mailto:contact@auralyptix.com" 
               className="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center transition-all duration-300 group"
             >
               <Mail className="w-5 h-5 text-gray-400 group-hover:text-purple-400 transition-colors" />

@@ -111,3 +111,4 @@ if (!allOk) {
   console.log('   - Demande si le serveur utilise Apache ou Nginx\n');
 }
 
+

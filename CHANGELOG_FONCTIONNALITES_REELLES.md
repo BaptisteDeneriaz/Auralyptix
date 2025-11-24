@@ -92,3 +92,4 @@ PUBLIC_BASE_URL=https://auralyptix.com
 
 **Toutes les fonctionnalités principales sont maintenant réelles et fonctionnelles !** 🎉
 
+

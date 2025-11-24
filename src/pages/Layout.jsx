@@ -58,7 +58,7 @@ export default function Layout({ children, currentPageName }) {
                     : 'text-gray-400 hover:text-white'
                 }`}
               >
-                Mes Edits
+                Mes montages
               </Link>
               <button onClick={() => scrollToSection('pricing')} className="text-sm font-medium text-gray-400 hover:text-white transition-colors">
                 Tarifs
@@ -69,7 +69,7 @@ export default function Layout({ children, currentPageName }) {
             <Link to={createPageUrl('Generator')}>
               <Button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-xl shadow-lg shadow-blue-500/30">
                 <Sparkles className="w-4 h-4 mr-2" />
-                Créer un edit
+                Créer un montage
               </Button>
             </Link>
           </div>

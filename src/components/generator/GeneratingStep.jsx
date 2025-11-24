@@ -10,7 +10,7 @@ const STEP_META = {
   beat_detection: { icon: Zap, label: 'Analyse BPM & beats' },
   clip_scouting: { icon: Film, label: 'Recherche de clips' },
   style_transfer: { icon: Wand2, label: 'Adaptation du style' },
-  editing: { icon: CheckCircle, label: 'Montage vidéo (FFmpeg)' },
+  editing: { icon: CheckCircle, label: 'Assemblage vidéo (studio)' },
   upload_final: { icon: UploadCloud, label: 'Upload final' }
 };
 
@@ -99,7 +99,7 @@ export default function GeneratingStep({ jobInfo }) {
             ? 'Tu peux retrouver la vidéo dans ton dashboard.'
             : job?.status === 'failed'
             ? error
-            : 'L\'IA crée ton edit professionnel'}
+            : 'L\'IA peaufine ton montage professionnel'}
         </p>
         <div className="inline-flex items-center gap-2 text-xs uppercase tracking-wide px-3 py-1 rounded-full bg-white/10 text-white/80">
           <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />

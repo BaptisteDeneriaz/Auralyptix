@@ -12,7 +12,6 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const PORT = process.env.PORT || 4000;
-const BASE_URL = process.env.PUBLIC_BASE_URL || `http://localhost:${PORT}`;
 const uploadsDir = path.join(__dirname, 'uploads');
 const dataDir = path.join(__dirname, 'data');
 
@@ -72,6 +71,23 @@ app.use('/uploads', express.static(uploadsDir));
 const sampleVideoUrl =
   'https://res.cloudinary.com/demo/video/upload/v1716554020/marketing_video.mp4';
 
+function getPublicBaseUrl(req = null) {
+  if (process.env.PUBLIC_BASE_URL) {
+    return process.env.PUBLIC_BASE_URL;
+  }
+
+  if (req) {
+    const host = req.get('host');
+    const forwardedProto = req.headers['x-forwarded-proto'];
+    const protocol = forwardedProto
+      ? forwardedProto.split(',')[0].trim()
+      : req.protocol;
+    return `${protocol}://${host}`;
+  }
+
+  return `http://localhost:${PORT}`;
+}
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -116,7 +132,7 @@ async function saveContactMessage(message) {
 }
 
 function createPlaceholderThumbnail(title) {
-  const text = encodeURIComponent(title || 'Edit IA');
+  const text = encodeURIComponent(title || 'Montage IA');
   return `https://placehold.co/800x450/111827/FFFFFF/png?text=${text}`;
 }
 
@@ -501,15 +517,15 @@ async function uploadPlaceholderVideo(editId) {
   if (!cloudinaryEnabled) {
     return {
       secure_url: sampleVideoUrl,
-      thumbnail: createPlaceholderThumbnail(`Edit ${editId}`),
+      thumbnail: createPlaceholderThumbnail(`Montage ${editId}`),
       provider: 'placeholder'
     };
   }
 
   const result = await cloudinary.uploader.upload(sampleVideoUrl, {
     resource_type: 'video',
-    folder: 'autoedit/generated',
-    public_id: `edit_${editId}_${Date.now()}`
+    folder: 'auralyptix/generated',
+    public_id: `montage_${editId}_${Date.now()}`
   });
 
   return {
@@ -720,7 +736,8 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
   }
 
   try {
-    let fileUrl = `${BASE_URL}/uploads/${req.file.filename}`;
+    const publicBaseUrl = getPublicBaseUrl(req);
+    let fileUrl = `${publicBaseUrl}/uploads/${req.file.filename}`;
     let publicUrl = fileUrl;
     let thumbnail = null;
     let duration = null;
@@ -731,9 +748,14 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
 
     // Si Cloudinary est configuré, upload directement
     if (cloudinaryEnabled) {
+      const baseFolder = 'auralyptix/uploads';
       const uploadOptions = {
         resource_type: resourceType,
-        folder: isVideo ? 'autoedit/uploads/videos' : isAudio ? 'autoedit/uploads/audio' : 'autoedit/uploads',
+        folder: isVideo
+          ? `${baseFolder}/videos`
+          : isAudio
+          ? `${baseFolder}/audio`
+          : baseFolder,
         public_id: `${Date.now()}-${req.file.originalname.replace(/\.[^/.]+$/, '')}`,
         overwrite: false,
         // Pour les vidéos et audio, récupérer la durée
@@ -793,7 +815,8 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
   } catch (error) {
     console.error('Erreur lors de l\'upload:', error);
     // En cas d'erreur Cloudinary, retourne l'URL locale
-    const fileUrl = `${BASE_URL}/uploads/${req.file.filename}`;
+    const publicBaseUrl = getPublicBaseUrl(req);
+    const fileUrl = `${publicBaseUrl}/uploads/${req.file.filename}`;
     res.json({
       file_url: fileUrl,
       public_url: fileUrl,
@@ -976,7 +999,7 @@ app.get('*', (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`Server ready on ${BASE_URL}`);
+  console.log(`Server ready on ${getPublicBaseUrl()}`);
   console.log(`Frontend served from: ${distPath}`);
 });
 

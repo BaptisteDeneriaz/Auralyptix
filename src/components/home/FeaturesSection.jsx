@@ -37,7 +37,7 @@ const features = [
   {
     icon: Palette,
     title: "Styles personnalisables",
-    description: "Choisis parmi des dizaines de styles d'edit ou crée le tien",
+    description: "Choisis parmi des dizaines de styles de montage ou crée le tien",
     gradient: "from-pink-500 to-rose-500"
   }
 ];
@@ -64,7 +64,7 @@ export default function FeaturesSection() {
             Tout ce dont tu as besoin
           </h2>
           <p className="text-xl text-gray-400 max-w-2xl mx-auto">
-            Des fonctionnalités puissantes pour créer des edits dignes des meilleurs créateurs
+            Des fonctionnalités puissantes pour créer des montages dignes des meilleurs créateurs
           </p>
         </motion.div>
 

@@ -39,7 +39,7 @@ export const api = {
     return response.json();
   },
 
-  async generateEdit(payload) {
+  async generateMontage(payload) {
     return request('/api/generate', {
       method: 'POST',
       body: JSON.stringify(payload)
@@ -61,11 +61,11 @@ export const api = {
     });
   },
 
-  async listEdits() {
+  async listMontages() {
     return request('/api/edits');
   },
 
-  async deleteEdit(id) {
+  async deleteMontage(id) {
     return request(`/api/edits/${id}`, {
       method: 'DELETE'
     });
@@ -81,5 +81,9 @@ export const api = {
 
 // Backward compatibility
 api.uploadMusic = api.uploadFile;
+api.generateEdit = api.generateMontage;
+api.listEdits = api.listMontages;
+api.deleteEdit = api.deleteMontage;
+
 
 

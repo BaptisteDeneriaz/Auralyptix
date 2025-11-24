@@ -42,7 +42,7 @@ export default function HeroSection() {
 
           {/* Main title */}
           <h1 className="text-5xl md:text-7xl lg:text-8xl font-bold">
-            <span className="block text-white mb-2">Crée des edits</span>
+            <span className="block text-white mb-2">Crée des montages</span>
             <span className="block bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 bg-clip-text text-transparent">
               professionnels
             </span>
@@ -68,7 +68,7 @@ export default function HeroSection() {
                 className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-8 py-6 text-lg rounded-xl shadow-lg shadow-blue-500/50 hover:shadow-blue-500/70 transition-all duration-300 group"
               >
                 <Sparkles className="w-5 h-5 mr-2 group-hover:rotate-12 transition-transform" />
-                Créer mon edit
+                Créer mon montage
               </Button>
             </Link>
             <Button 
@@ -91,7 +91,7 @@ export default function HeroSection() {
           >
             <div className="text-center">
               <div className="text-3xl md:text-4xl font-bold text-white mb-1">50K+</div>
-              <div className="text-sm text-gray-400">Edits créés</div>
+              <div className="text-sm text-gray-400">Montages créés</div>
             </div>
             <div className="text-center">
               <div className="text-3xl md:text-4xl font-bold text-white mb-1">10s</div>

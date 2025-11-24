@@ -2,21 +2,21 @@ import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
-import { motion } from "framer-motion";
-import { Plus, Play, Download, Trash2, Clock, CheckCircle } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { motion } from 'framer-motion';
+import { Plus, Play, Download, Trash2, Clock, CheckCircle } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import VideoModal from '../components/dashboard/VideoModal';
 import { api } from '@/api/client';
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const [deletingId, setDeletingId] = useState(null);
-  const [selectedEdit, setSelectedEdit] = useState(null);
+  const [selectedMontage, setSelectedMontage] = useState(null);
 
-  const { data: edits = [], isLoading, refetch } = useQuery({
-    queryKey: ['edits'],
-    queryFn: () => api.listEdits(),
+  const { data: montages = [], isLoading, refetch } = useQuery({
+    queryKey: ['montages'],
+    queryFn: () => api.listMontages(),
     refetchInterval: 4000
   });
 
@@ -31,13 +31,13 @@ export default function Dashboard() {
   );
 
   const handleDelete = async (id) => {
-    if (!confirm('Supprimer cet edit ?')) return;
+    if (!confirm('Supprimer ce montage ?')) return;
     setDeletingId(id);
     try {
-      await api.deleteEdit(id);
+      await api.deleteMontage(id);
       await refetch();
     } catch (error) {
-      console.error('Error deleting edit:', error);
+      console.error('Error deleting montage:', error);
       alert('Erreur lors de la suppression');
     } finally {
       setDeletingId(null);
@@ -56,7 +56,7 @@ export default function Dashboard() {
         {/* Header */}
         <div className="flex items-center justify-between mb-12">
           <div>
-            <h1 className="text-4xl md:text-5xl font-bold text-white mb-2">Mes Edits</h1>
+            <h1 className="text-4xl md:text-5xl font-bold text-white mb-2">Mes montages</h1>
             <p className="text-gray-400">Tous tes montages créés par l'IA</p>
           </div>
           <Button
@@ -64,7 +64,7 @@ export default function Dashboard() {
             className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-6 py-6 rounded-xl shadow-lg shadow-blue-500/50"
           >
             <Plus className="w-5 h-5 mr-2" />
-            Nouvel edit
+            Nouveau montage
           </Button>
         </div>
 
@@ -74,8 +74,8 @@ export default function Dashboard() {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-gray-400 text-sm mb-1">Total d'edits</p>
-                  <p className="text-3xl font-bold text-white">{edits.length}</p>
+                  <p className="text-gray-400 text-sm mb-1">Total de montages</p>
+                  <p className="text-3xl font-bold text-white">{montages.length}</p>
                 </div>
                 <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 flex items-center justify-center">
                   <Play className="w-6 h-6 text-white" />
@@ -90,7 +90,13 @@ export default function Dashboard() {
                 <div>
                   <p className="text-gray-400 text-sm mb-1">Ce mois-ci</p>
                   <p className="text-3xl font-bold text-white">
-                    {edits.filter(e => new Date(e.created_date).getMonth() === new Date().getMonth()).length}
+                    {
+                      montages.filter(
+                        (montage) =>
+                          new Date(montage.created_date).getMonth() ===
+                          new Date().getMonth()
+                      ).length
+                    }
                   </p>
                 </div>
                 <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-green-600 to-emerald-600 flex items-center justify-center">
@@ -106,7 +112,13 @@ export default function Dashboard() {
                 <div>
                   <p className="text-gray-400 text-sm mb-1">Temps total</p>
                   <p className="text-3xl font-bold text-white">
-                    {Math.round(edits.reduce((sum, e) => sum + (e.duration || 0), 0) / 60)}m
+                    {Math.round(
+                      montages.reduce(
+                        (sum, montage) => sum + (montage.duration || 0),
+                        0
+                      ) / 60
+                    )}
+                    m
                   </p>
                 </div>
                 <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 flex items-center justify-center">
@@ -151,32 +163,32 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Edits grid */}
+        {/* Montages grid */}
         {isLoading ? (
           <div className="text-center py-12">
             <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
             <p className="text-gray-400">Chargement...</p>
           </div>
-        ) : edits.length === 0 ? (
+        ) : montages.length === 0 ? (
           <div className="text-center py-20">
             <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-r from-blue-600 to-purple-600 flex items-center justify-center opacity-50">
               <Play className="w-10 h-10 text-white" />
             </div>
-            <h3 className="text-2xl font-bold text-white mb-2">Aucun edit pour le moment</h3>
-            <p className="text-gray-400 mb-6">Crée ton premier edit en quelques secondes</p>
+            <h3 className="text-2xl font-bold text-white mb-2">Aucun montage pour le moment</h3>
+            <p className="text-gray-400 mb-6">Crée ton premier montage en quelques secondes</p>
             <Button
               onClick={() => navigate(createPageUrl('Generator'))}
               className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-8 py-6 rounded-xl"
             >
               <Plus className="w-5 h-5 mr-2" />
-              Créer mon premier edit
+              Créer mon premier montage
             </Button>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {edits.map((edit, index) => (
+            {montages.map((montage, index) => (
               <motion.div
-                key={edit.id}
+                key={montage.id}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.1 }}
@@ -184,10 +196,10 @@ export default function Dashboard() {
                 <Card className="group bg-gradient-to-br from-gray-900/50 to-gray-950/50 border border-white/10 backdrop-blur-xl hover:border-white/20 transition-all duration-300 overflow-hidden">
                   {/* Thumbnail */}
                   <div className="relative aspect-video bg-gradient-to-br from-gray-800 to-gray-900 overflow-hidden">
-                    {edit.thumbnail_url ? (
+                    {montage.thumbnail_url ? (
                       <img 
-                        src={edit.thumbnail_url} 
-                        alt={edit.title}
+                        src={montage.thumbnail_url} 
+                        alt={montage.title}
                         className="w-full h-full object-cover"
                       />
                     ) : (
@@ -196,17 +208,17 @@ export default function Dashboard() {
                       </div>
                     )}
                     <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                      {edit.status === 'ready' ? (
+                      {montage.status === 'ready' ? (
                         <div className="flex items-center gap-3">
                           <button 
-                            onClick={() => setSelectedEdit(edit)}
+                            onClick={() => setSelectedMontage(montage)}
                             className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm hover:bg-white/30 flex items-center justify-center transition-all"
                           >
                             <Play className="w-6 h-6 text-white ml-1" />
                           </button>
                           <a 
-                            href={edit.video_url}
-                            download={`${edit.title}.mp4`}
+                            href={montage.video_url}
+                            download={`${montage.title}.mp4`}
                             onClick={(e) => e.stopPropagation()}
                             className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm hover:bg-white/30 flex items-center justify-center transition-all"
                           >
@@ -222,34 +234,36 @@ export default function Dashboard() {
                   </div>
 
                   <CardContent className="p-4">
-                    <h3 className="text-white font-semibold mb-1 truncate">{edit.title}</h3>
+                    <h3 className="text-white font-semibold mb-1 truncate">{montage.title}</h3>
                     <div className="flex items-center justify-between text-sm">
-                      <span className="text-gray-400">{edit.theme}</span>
-                      <span className="text-gray-500">{edit.duration ? `${edit.duration}s` : '--'}</span>
+                      <span className="text-gray-400">{montage.theme}</span>
+                      <span className="text-gray-500">
+                        {montage.duration ? `${montage.duration}s` : '--'}
+                      </span>
                     </div>
                     <div className="flex items-center justify-between mt-2">
                       <span className="text-xs uppercase tracking-wide text-gray-500">
-                        Style : {edit.style}
+                        Style : {montage.style}
                       </span>
                       <span
                         className={`text-xs px-2 py-1 rounded-full ${
-                          edit.status === 'ready'
+                          montage.status === 'ready'
                             ? 'bg-green-500/10 text-green-300'
-                            : edit.status === 'failed'
+                            : montage.status === 'failed'
                             ? 'bg-red-500/10 text-red-300'
                             : 'bg-yellow-500/10 text-yellow-300'
                         }`}
                       >
-                        {edit.status || 'processing'}
+                        {montage.status || 'processing'}
                       </span>
                     </div>
                     <div className="flex items-center justify-between mt-3 pt-3 border-t border-white/10">
                       <span className="text-xs text-gray-500">
-                        {new Date(edit.created_date).toLocaleDateString('fr-FR')}
+                        {new Date(montage.created_date).toLocaleDateString('fr-FR')}
                       </span>
                       <button
-                        onClick={() => handleDelete(edit.id)}
-                        disabled={deletingId === edit.id}
+                        onClick={() => handleDelete(montage.id)}
+                        disabled={deletingId === montage.id}
                         className="text-red-400 hover:text-red-300 transition-colors disabled:opacity-50"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -264,11 +278,11 @@ export default function Dashboard() {
       </div>
 
       {/* Video Modal */}
-      {selectedEdit && (
+      {selectedMontage && (
         <VideoModal
-          edit={selectedEdit}
-          isOpen={!!selectedEdit}
-          onClose={() => setSelectedEdit(null)}
+          montage={selectedMontage}
+          isOpen={!!selectedMontage}
+          onClose={() => setSelectedMontage(null)}
         />
       )}
     </div>

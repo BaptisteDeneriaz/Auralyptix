@@ -142,7 +142,7 @@ export default function ContactSection() {
             <div className="mt-8 pt-8 border-t border-white/10 text-center">
               <div className="flex items-center justify-center gap-2 text-gray-400">
                 <Mail className="w-5 h-5" />
-                <span>contact@autoedit.ai</span>
+                <span>contact@auralyptix.com</span>
               </div>
             </div>
           </div>

@@ -52,3 +52,4 @@ git remote add origin https://github.com/BaptisteDeneriaz/Auralyptix.git
 
 Render détectera automatiquement les changements et redéploiera ton site en quelques minutes ! 🎉
 
+

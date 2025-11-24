@@ -15,7 +15,8 @@ export default function UploadStep({
   introVideos,
   setIntroVideos,
   formData,
-  setFormData
+  setFormData,
+  showContinueButton = true
 }) {
   const [uploadingMusic, setUploadingMusic] = useState(false);
   const [uploadingIntro, setUploadingIntro] = useState(false);
@@ -201,8 +202,8 @@ export default function UploadStep({
       className="space-y-6"
     >
       <div className="text-center space-y-2">
-        <h2 className="text-3xl font-bold text-white">Upload ta musique</h2>
-        <p className="text-gray-400">Commence par télécharger le fichier audio pour ton edit</p>
+        <h2 className="text-3xl font-bold text-white">Téléverse ta piste principale</h2>
+        <p className="text-gray-400">Commence par charger l’audio (ou la vidéo) qui servira de base à ton montage</p>
       </div>
 
       {!musicData ? (
@@ -395,13 +396,15 @@ export default function UploadStep({
         )}
       </div>
 
-      <Button
-        onClick={onNext}
-        disabled={!musicData || uploadingMusic || uploadingIntro}
-        className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white py-6 text-lg rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        Continuer
-      </Button>
+      {showContinueButton && (
+        <Button
+          onClick={onNext}
+          disabled={!musicData || uploadingMusic || uploadingIntro}
+          className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white py-6 text-lg rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Continuer
+        </Button>
+      )}
     </motion.div>
   );
 }
