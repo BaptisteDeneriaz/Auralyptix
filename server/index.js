@@ -38,7 +38,6 @@ const messagesFile = path.join(dataDir, 'messages.json');
 const jobsFile = path.join(dataDir, 'jobs.json');
 
 const assemblyEnabled = Boolean(process.env.ASSEMBLYAI_API_KEY);
-const pexelsEnabled = Boolean(process.env.PEXELS_API_KEY);
 const cloudinaryEnabled =
   Boolean(process.env.CLOUDINARY_CLOUD_NAME) &&
   Boolean(process.env.CLOUDINARY_API_KEY) &&
@@ -670,83 +669,6 @@ async function detectBeats(audioUrl, audioSegment = null, targetDuration = null)
   };
 }
 
-async function fetchClips(theme, count = 8) {
-  const searchQuery = theme || 'cinematic';
-  
-  if (!pexelsEnabled) {
-    console.log('Pexels non configuré, retour de clips placeholder');
-    return Array.from({ length: Math.min(count, 6) }).map((_, idx) => ({
-      id: `placeholder-${idx}`,
-      url: `https://videos.pexels.com/video-${1000 + idx}`,
-      thumbnail: `https://images.pexels.com/photos/${1000 + idx}/pexels-photo.jpeg`,
-      duration: 6 + (idx % 4),
-      description: `${searchQuery} clip ${idx + 1}`,
-      provider: 'placeholder'
-    }));
-  }
-
-  try {
-    const response = await fetch(
-      `https://api.pexels.com/videos/search?query=${encodeURIComponent(
-        searchQuery
-      )}&orientation=portrait&size=large&per_page=${Math.min(count, 15)}`,
-      {
-        headers: {
-          Authorization: process.env.PEXELS_API_KEY
-        }
-      }
-    );
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Pexels API error:', response.status, errorText);
-      // Fallback vers placeholder en cas d'erreur
-      return fetchClips(null, count);
-    }
-
-    const data = await response.json();
-    
-    if (!data.videos || data.videos.length === 0) {
-      console.log('Aucun clip Pexels trouvé pour:', searchQuery);
-      return fetchClips(null, count);
-    }
-
-    // Sélectionner les meilleurs clips (portrait, bonne qualité)
-    const clips = data.videos
-      .filter(video => {
-        // Préférer les vidéos portrait
-        const portraitFile = video.video_files?.find(
-          file => file.quality === 'hd' || file.quality === 'sd'
-        );
-        return portraitFile && video.duration > 3; // Au moins 3 secondes
-      })
-      .slice(0, count)
-      .map((video) => {
-        // Trouver le meilleur fichier vidéo (HD préféré, sinon SD)
-        const videoFile = video.video_files?.find(f => f.quality === 'hd') ||
-                         video.video_files?.find(f => f.quality === 'sd') ||
-                         video.video_files?.[0];
-        
-        return {
-          id: `pexels-${video.id}`,
-          url: videoFile?.link || video.video_files?.[0]?.link,
-          duration: video.duration,
-          thumbnail: video.image,
-          description: video.user?.name || searchQuery,
-          provider: 'pexels',
-          width: videoFile?.width,
-          height: videoFile?.height
-        };
-      });
-
-    console.log(`Trouvé ${clips.length} clips Pexels pour: ${searchQuery}`);
-    return clips.length > 0 ? clips : fetchClips(null, count);
-  } catch (error) {
-    console.error('Erreur lors de la recherche Pexels:', error.message);
-    return fetchClips(null, count);
-  }
-}
-
 async function prepareClipAsset(clip) {
   const label = `clip-${clip.id || crypto.randomUUID()}`;
   const extension = guessExtension(clip.url, '.mp4');
@@ -937,29 +859,21 @@ async function runGenerationJob(jobId, payload) {
       };
     });
 
-    let clips = [];
-    if (scenePlan.length) {
-      clips = scenePlan;
-      await updateJobStep(jobId, 'clip_scouting', {
-        status: 'done',
-        completed_at: new Date().toISOString(),
-        output: {
-          note: 'Segments générés via analyse vidéo',
-          clip_count: scenePlan.length
-        }
-      });
-    } else {
-      const clipOutput = await runStep('clip_scouting', async () => {
-        const clipCount = Math.ceil((targetDuration || 30) / 5);
-        const fetched = await fetchClips(payload.theme, Math.min(clipCount, 12));
-        return {
-          source: 'pexels',
-          clip_count: fetched.length,
-          clips: fetched
-        };
-      });
-      clips = clipOutput.clips || [];
+    if (!scenePlan.length) {
+      throw new Error(
+        'Aucune scène détectée : merci de fournir une vidéo source exploitable'
+      );
     }
+
+    const clips = scenePlan;
+    await updateJobStep(jobId, 'clip_scouting', {
+      status: 'done',
+      completed_at: new Date().toISOString(),
+      output: {
+        note: 'Segments générés via analyse vidéo',
+        clip_count: scenePlan.length
+      }
+    });
 
     await runStep('style_transfer', async () => {
       await sleep(400);
@@ -1083,7 +997,6 @@ app.get('/api/health', (_req, res) => {
     services: {
       assemblyai: assemblyEnabled ? 'configured' : 'disabled',
       cloudinary: cloudinaryEnabled ? 'configured' : 'disabled',
-      pexels: pexelsEnabled ? 'configured' : 'disabled',
       pixabay_audio: pixabayAudioConfigured ? 'configured' : 'fallback',
       vision: visionApiConfigured ? 'configured' : 'fallback'
     },
