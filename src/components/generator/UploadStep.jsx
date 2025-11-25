@@ -14,12 +14,17 @@ export default function UploadStep({
   setMusicData,
   introVideos,
   setIntroVideos,
+  sourceVideo,
+  setSourceVideo,
+  audioPresets = [],
+  audioLoading = false,
   formData,
   setFormData,
   showContinueButton = true
 }) {
   const [uploadingMusic, setUploadingMusic] = useState(false);
   const [uploadingIntro, setUploadingIntro] = useState(false);
+  const [uploadingSource, setUploadingSource] = useState(false);
   const [dragActive, setDragActive] = useState(false);
 
   const audioDuration = useMemo(() => {
@@ -173,6 +178,53 @@ export default function UploadStep({
     } finally {
       setUploadingIntro(false);
     }
+  };
+
+  const handleSourceUpload = async (file) => {
+    if (!file) return;
+    if (!file.type.startsWith('video/')) {
+      alert('Merci de sélectionner un fichier vidéo (MP4, MOV, ... )');
+      return;
+    }
+    setUploadingSource(true);
+    try {
+      const uploaded = await api.uploadFile(file);
+      setSourceVideo({
+        file_url: uploaded.file_url,
+        public_url: uploaded.public_url,
+        name: file.name,
+        size: (file.size / (1024 * 1024)).toFixed(2) + ' MB',
+        mime_type: file.type,
+        durationSeconds: uploaded.duration_seconds || null
+      });
+    } catch (error) {
+      console.error('Source video upload error:', error);
+      alert('Erreur lors de l’upload de la vidéo source');
+    } finally {
+      setUploadingSource(false);
+    }
+  };
+
+  const handlePresetSelect = (preset) => {
+    if (!preset?.audio_url) return;
+    setMusicData({
+      file_url: preset.audio_url,
+      public_url: preset.audio_url,
+      name: preset.title,
+      size: 'Preset audio',
+      mime_type: 'audio/mpeg',
+      durationSeconds: preset.duration || formData.durationSeconds,
+      preset_id: preset.id,
+      isPreset: true
+    });
+    updateAudioSelection({
+      start: 0,
+      end: Math.min(
+        preset.duration || formData.durationSeconds || 30,
+        formData.durationSeconds || preset.duration || 30
+      ),
+      autoBeatAlign: true
+    });
   };
 
   const handleDrop = (e) => {
@@ -396,10 +448,98 @@ export default function UploadStep({
         )}
       </div>
 
+      <div className="space-y-4 pt-6 border-t border-white/5">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-white font-semibold">Vidéo source principale</p>
+            <p className="text-gray-400 text-sm">
+              Ajoute ta longue vidéo de rallye, de vlog, etc. L’IA en extraira les meilleures séquences.
+            </p>
+          </div>
+          {!sourceVideo && (
+            <label className="cursor-pointer px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-sm text-white">
+              {uploadingSource ? 'Upload...' : 'Ajouter'}
+              <input
+                type="file"
+                accept="video/*"
+                className="hidden"
+                onChange={(e) => handleSourceUpload(e.target.files[0])}
+                disabled={uploadingSource}
+              />
+            </label>
+          )}
+        </div>
+        {sourceVideo ? (
+          <div className="relative flex items-center gap-3 bg-white/5 border border-white/10 rounded-2xl p-4">
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-purple-600 to-fuchsia-600 flex items-center justify-center">
+              <Video className="w-6 h-6 text-white" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-white font-medium truncate">{sourceVideo.name}</p>
+              <p className="text-gray-400 text-xs">
+                {sourceVideo.size}
+                {sourceVideo.durationSeconds ? ` • ${sourceVideo.durationSeconds}s` : ''}
+              </p>
+            </div>
+            <button
+              onClick={() => setSourceVideo(null)}
+              className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center"
+            >
+              <X className="w-4 h-4 text-white" />
+            </button>
+          </div>
+        ) : (
+          <div className="border border-dashed border-white/10 rounded-2xl p-6 text-center text-gray-400 text-sm">
+            {uploadingSource
+              ? 'Upload en cours...'
+              : 'Aucune vidéo source ajoutée pour le moment.'}
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-4 pt-6 border-t border-white/5">
+        <div>
+          <p className="text-white font-semibold">Bibliothèque audio prête</p>
+          <p className="text-gray-400 text-sm">
+            Sélectionne un son tendance façon TikTok si tu n’as pas de musique sous la main.
+          </p>
+        </div>
+        {audioLoading ? (
+          <p className="text-gray-500 text-sm">Chargement des presets...</p>
+        ) : audioPresets.length === 0 ? (
+          <p className="text-gray-500 text-sm">
+            Configure la clé Pixabay pour débloquer la bibliothèque audio.
+          </p>
+        ) : (
+          <div className="space-y-3">
+            {audioPresets.slice(0, 5).map((preset) => (
+              <div
+                key={preset.id}
+                className="flex items-center justify-between bg-white/5 border border-white/10 rounded-2xl p-4"
+              >
+                <div>
+                  <p className="text-white font-medium">{preset.title}</p>
+                  <p className="text-xs text-gray-500">
+                    {preset.duration ? `${preset.duration}s` : '--'} • {preset.mood || preset.tags || 'audio'}
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  onClick={() => handlePresetSelect(preset)}
+                  className="border-white/30 text-white hover:bg-white/10"
+                >
+                  Utiliser
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {showContinueButton && (
         <Button
           onClick={onNext}
-          disabled={!musicData || uploadingMusic || uploadingIntro}
+          disabled={!musicData || uploadingMusic || uploadingIntro || uploadingSource}
           className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white py-6 text-lg rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
         >
           Continuer

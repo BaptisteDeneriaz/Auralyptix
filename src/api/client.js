@@ -71,6 +71,10 @@ export const api = {
     });
   },
 
+  async getAudioLibrary() {
+    return request('/api/audio-library');
+  },
+
   async sendContactMessage(payload) {
     return request('/api/contact', {
       method: 'POST',

@@ -52,6 +52,11 @@ VITE_API_URL=http://localhost:4000
 - `npm run config:render` : mettre à jour l'URL Render (`.env.production`)
 - `npm run lint` : exécuter ESLint
 
+### Analyse vidéo et sons prêts
+
+- **API vision (optionnelle)** : remplissez `VISION_API_URL` + `VISION_API_KEY` pour brancher votre service préféré (Shotstack Analyze, Twelve Labs, etc.). Le backend lui envoie l’URL Cloudinary de la vidéo source afin de récupérer les scènes clés (sauts, passages rapides, highlight speaker). Sans clé, un fallback local découpe la vidéo en segments égaux.
+- **Bibliothèque audio** : ajoutez `PIXABAY_AUDIO_API_KEY` pour activer la recherche de sons TikTok-ready via l’API Pixabay Music (ordre « popular »). Sans clé, quelques presets embarqués restent disponibles.
+
 ## Déploiement sur un hébergeur
 
 1. **Backend**  
@@ -98,6 +103,9 @@ ASSEMBLYAI_API_KEY=<clé AssemblyAI>
 ASSEMBLYAI_POLL_INTERVAL_MS=2000
 ASSEMBLYAI_MAX_POLLS=90
 PEXELS_API_KEY=<clé Pexels>
+PIXABAY_AUDIO_API_KEY=<clé Pixabay Music>
+VISION_API_URL=<endpoint analyse vidéo>
+VISION_API_KEY=<clé API vision>
 CLOUDINARY_CLOUD_NAME=<cloud name>
 CLOUDINARY_API_KEY=<api key>
 CLOUDINARY_API_SECRET=<api secret>
@@ -112,5 +120,6 @@ CLOUDINARY_API_SECRET=<api secret>
 - `GET /api/edits` / `GET /api/edits/:id` / `DELETE /api/edits/:id` – gestion des montages terminés.  
 - `POST /api/transcribe` – proxy vers AssemblyAI (ou fallback local) pour la transcription.  
 - `POST /api/contact` – stocke les messages du formulaire.
+- `GET /api/audio-library` – retourne la bibliothèque de sons prêts à l’emploi (Pixabay Music ou presets embarqués).
 
 Le backend stocke les données persistantes dans `server/data/*.json` (edits, jobs, messages) et les fichiers uploadés dans `server/uploads/`. Montez un volume persistant en production.

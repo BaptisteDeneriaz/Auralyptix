@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { Music, Sparkles, Clock3 } from 'lucide-react';
 import UploadStep from '../components/generator/UploadStep';
@@ -35,6 +35,9 @@ export default function Generator() {
   const [launching, setLaunching] = useState(false);
   const [musicData, setMusicData] = useState(null);
   const [introVideos, setIntroVideos] = useState([]);
+  const [sourceVideo, setSourceVideo] = useState(null);
+  const [audioPresets, setAudioPresets] = useState([]);
+  const [audioLoading, setAudioLoading] = useState(false);
   const [jobInfo, setJobInfo] = useState(null);
   const [formData, setFormData] = useState({
     title: '',
@@ -53,6 +56,26 @@ export default function Generator() {
       autoBeatAlign: true
     }
   });
+
+  useEffect(() => {
+    let mounted = true;
+    setAudioLoading(true);
+    api
+      .getAudioLibrary()
+      .then((data) => {
+        if (!mounted) return;
+        setAudioPresets(data?.presets || []);
+      })
+      .catch((error) => {
+        console.error('Audio library fetch failed:', error);
+      })
+      .finally(() => {
+        if (mounted) setAudioLoading(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const moduleStatus = useMemo(
     () => ({
@@ -92,6 +115,10 @@ export default function Generator() {
             setMusicData={setMusicData}
             introVideos={introVideos}
             setIntroVideos={setIntroVideos}
+            sourceVideo={sourceVideo}
+            setSourceVideo={setSourceVideo}
+            audioPresets={audioPresets}
+            audioLoading={audioLoading}
             formData={formData}
             setFormData={setFormData}
             showContinueButton={false}
@@ -135,7 +162,16 @@ export default function Generator() {
           name: video.name,
           mime_type: video.mime_type
         })),
-        reference_video_url: formData.referenceUrl
+        reference_video_url: formData.referenceUrl,
+        source_video: sourceVideo
+          ? {
+              url: sourceVideo.public_url || sourceVideo.file_url,
+              public_url: sourceVideo.public_url || sourceVideo.file_url,
+              name: sourceVideo.name,
+              mime_type: sourceVideo.mime_type,
+              duration: sourceVideo.durationSeconds
+            }
+          : null
       };
 
       const response = await api.generateMontage(payload);

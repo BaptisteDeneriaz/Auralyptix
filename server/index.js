@@ -12,6 +12,8 @@ import os from 'os';
 import { Readable } from 'stream';
 import { pipeline } from 'stream/promises';
 import ffmpeg from 'fluent-ffmpeg';
+import { fetchAudioPresets } from './services/audioLibrary.js';
+import { analyzeSourceVideo } from './services/vision.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -23,6 +25,9 @@ const dataDir = path.join(__dirname, 'data');
 const realRenderEnabled = process.env.REAL_RENDER_ENABLED === 'true';
 const MAX_RENDER_CLIPS = Number(process.env.RENDER_MAX_CLIPS || 6);
 const MAX_CLIP_SEGMENT = Number(process.env.RENDER_CLIP_SEGMENT_MAX || 6);
+const visionApiConfigured =
+  Boolean(process.env.VISION_API_URL) && Boolean(process.env.VISION_API_KEY);
+const pixabayAudioConfigured = Boolean(process.env.PIXABAY_AUDIO_API_KEY);
 const TEMP_PREFIX = 'auralyptix';
 
 await fs.mkdir(uploadsDir, { recursive: true });
@@ -74,6 +79,7 @@ const defaultSteps = [
   'analyze_intro',
   'transcription',
   'beat_detection',
+  'scene_analysis',
   'clip_scouting',
   'style_transfer',
   'editing',
@@ -226,15 +232,20 @@ function buildClipPlan(clips = [], targetDuration = 30) {
 
   for (const clip of sortedClips) {
     if (!clip?.url || !isRemoteAbsoluteUrl(clip.url)) continue;
+    const desiredDuration = clip.requestedDuration
+      ? Number(clip.requestedDuration)
+      : Number(clip.duration);
     const clipDuration = Math.max(
       2,
-      Math.min(Number(clip.duration) || MAX_CLIP_SEGMENT, MAX_CLIP_SEGMENT)
+      Math.min(desiredDuration || MAX_CLIP_SEGMENT, MAX_CLIP_SEGMENT)
     );
 
     const requestedDuration = Math.min(clipDuration, remaining);
     plan.push({
       id: clip.id || crypto.randomUUID(),
       url: clip.url,
+      start: typeof clip.start === 'number' ? Number(clip.start) : undefined,
+      label: clip.label,
       requestedDuration: Number(requestedDuration.toFixed(2))
     });
     remaining -= requestedDuration;
@@ -328,10 +339,7 @@ async function renderMontageWithFfmpeg({
   const downloadedFiles = [];
   try {
     for (const clip of plan) {
-      const localPath = await downloadToTemp(clip.url, {
-        label: `clip-${clip.id}`,
-        extension: '.mp4'
-      });
+      const localPath = await prepareClipAsset(clip);
       clip.localPath = localPath;
       downloadedFiles.push(localPath);
     }
@@ -739,6 +747,33 @@ async function fetchClips(theme, count = 8) {
   }
 }
 
+async function prepareClipAsset(clip) {
+  const label = `clip-${clip.id || crypto.randomUUID()}`;
+  const extension = guessExtension(clip.url, '.mp4');
+  const tempPath = path.join(os.tmpdir(), `${TEMP_PREFIX}-${label}-${Date.now()}${extension}`);
+
+  if (typeof clip.start === 'number') {
+    await new Promise((resolve, reject) => {
+      ffmpeg(clip.url)
+        .setStartTime(clip.start)
+        .setDuration(
+          Math.max(1, Number(clip.requestedDuration) || MAX_CLIP_SEGMENT)
+        )
+        .outputOptions(['-c copy'])
+        .on('end', resolve)
+        .on('error', reject)
+        .save(tempPath);
+    });
+    return tempPath;
+  }
+
+  const downloaded = await downloadToTemp(clip.url, {
+    label,
+    extension
+  });
+  return downloaded;
+}
+
 async function uploadPlaceholderVideo(editId, title = null) {
   if (!cloudinaryEnabled) {
     return {
@@ -885,10 +920,46 @@ async function runGenerationJob(jobId, payload) {
         targetDuration
       )
     );
-    const clips = await runStep('clip_scouting', async () => {
-      const clipCount = Math.ceil((targetDuration || 30) / 5); // ~1 clip toutes les 5 secondes
-      return fetchClips(payload.theme, Math.min(clipCount, 12));
+
+    let scenePlan = [];
+    await runStep('scene_analysis', async () => {
+      if (!payload.sourceVideo?.url) {
+        return { used: false, scenes: 0 };
+      }
+      const scenes = await analyzeSourceVideo({
+        sourceVideo: payload.sourceVideo,
+        targetDuration
+      });
+      scenePlan = scenes;
+      return {
+        used: true,
+        scene_count: scenes.length
+      };
     });
+
+    let clips = [];
+    if (scenePlan.length) {
+      clips = scenePlan;
+      await updateJobStep(jobId, 'clip_scouting', {
+        status: 'done',
+        completed_at: new Date().toISOString(),
+        output: {
+          note: 'Segments générés via analyse vidéo',
+          clip_count: scenePlan.length
+        }
+      });
+    } else {
+      const clipOutput = await runStep('clip_scouting', async () => {
+        const clipCount = Math.ceil((targetDuration || 30) / 5);
+        const fetched = await fetchClips(payload.theme, Math.min(clipCount, 12));
+        return {
+          source: 'pexels',
+          clip_count: fetched.length,
+          clips: fetched
+        };
+      });
+      clips = clipOutput.clips || [];
+    }
 
     await runStep('style_transfer', async () => {
       await sleep(400);
@@ -1012,7 +1083,9 @@ app.get('/api/health', (_req, res) => {
     services: {
       assemblyai: assemblyEnabled ? 'configured' : 'disabled',
       cloudinary: cloudinaryEnabled ? 'configured' : 'disabled',
-      pexels: pexelsEnabled ? 'configured' : 'disabled'
+      pexels: pexelsEnabled ? 'configured' : 'disabled',
+      pixabay_audio: pixabayAudioConfigured ? 'configured' : 'fallback',
+      vision: visionApiConfigured ? 'configured' : 'fallback'
     },
     environment: process.env.NODE_ENV || 'development',
     timestamp: new Date().toISOString()
@@ -1129,7 +1202,8 @@ app.post('/api/generate', async (req, res) => {
     reference_video_url,
     custom_prompt,
     duration_seconds = 30,
-    audio_segment = {}
+    audio_segment = {},
+    source_video = null
   } = req.body;
 
   if (!title || !theme || !style || !music_url) {
@@ -1171,6 +1245,7 @@ app.post('/api/generate', async (req, res) => {
     intro_videos,
     duration_seconds,
     audio_segment: parsedAudioSegment,
+    source_video,
     status: 'processing',
     thumbnail_url: createPlaceholderThumbnail(title),
     created_date: new Date().toISOString()
@@ -1192,7 +1267,8 @@ app.post('/api/generate', async (req, res) => {
     referenceVideoUrl: reference_video_url,
     customPrompt: custom_prompt,
     durationSeconds: duration_seconds,
-    audioSegment: parsedAudioSegment
+    audioSegment: parsedAudioSegment,
+    sourceVideo: source_video
   });
 
   res.status(202).json({
@@ -1213,6 +1289,15 @@ app.get('/api/status/:jobId', async (req, res) => {
 app.get('/api/jobs', async (_req, res) => {
   const jobs = await readJobs();
   res.json(jobs);
+});
+
+app.get('/api/audio-library', async (_req, res) => {
+  try {
+    const presets = await fetchAudioPresets(12);
+    res.json({ presets, provider: pixabayAudioConfigured ? 'pixabay' : 'fallback' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
 });
 
 app.get('/api/edits', async (_req, res) => {
