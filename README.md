@@ -64,6 +64,30 @@ VITE_API_URL=http://localhost:4000
    - Déployez le dossier `dist` sur n’importe quel hébergeur static.  
    - Configurez `VITE_API_URL` (ou `VITE_API_URL` lors du build) pour cibler l’API déployée.
 
+### Activer le rendu vidéo réel (FFmpeg)
+
+Le backend peut maintenant générer un vrai montage MP4 (concat clips + musique) via FFmpeg :
+
+1. **Installer FFmpeg sur l’hébergeur**  
+   - Sur Render : ajoutez dans “Build Command”  
+     `apt-get update && apt-get install -y ffmpeg && npm install`  
+   - Ou fournissez vos propres binaires et indiquez-les avec `FFMPEG_PATH` / `FFPROBE_PATH`.
+
+2. **Variables d’environnement obligatoires**  
+   ```
+   REAL_RENDER_ENABLED=true
+   RENDER_MAX_CLIPS=6
+   RENDER_CLIP_SEGMENT_MAX=6
+   FFMPEG_PATH=/usr/bin/ffmpeg       # adapter si besoin
+   FFPROBE_PATH=/usr/bin/ffprobe     # optionnel mais recommandé
+   ```
+
+3. **Stockage Cloud**  
+   - Si Cloudinary est configuré, la vidéo finale est uploadée automatiquement (`auralyptix/generated`).  
+   - Sinon, le fichier est copié dans `server/uploads/` et servi via l’API.
+
+Si `REAL_RENDER_ENABLED` est `false` ou si FFmpeg échoue, le pipeline retombe automatiquement sur la génération simulée (placeholder).
+
 ## Fichier d’environnement
 
 Copiez `env.sample` vers `.env` et remplissez les clés suivantes (non versionnées) :

@@ -4,9 +4,14 @@ import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs/promises';
+import { createWriteStream } from 'fs';
 import multer from 'multer';
 import crypto from 'crypto';
 import { v2 as cloudinary } from 'cloudinary';
+import os from 'os';
+import { Readable } from 'stream';
+import { pipeline } from 'stream/promises';
+import ffmpeg from 'fluent-ffmpeg';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -14,6 +19,11 @@ const __dirname = path.dirname(__filename);
 const PORT = process.env.PORT || 4000;
 const uploadsDir = path.join(__dirname, 'uploads');
 const dataDir = path.join(__dirname, 'data');
+
+const realRenderEnabled = process.env.REAL_RENDER_ENABLED === 'true';
+const MAX_RENDER_CLIPS = Number(process.env.RENDER_MAX_CLIPS || 6);
+const MAX_CLIP_SEGMENT = Number(process.env.RENDER_CLIP_SEGMENT_MAX || 6);
+const TEMP_PREFIX = 'auralyptix';
 
 await fs.mkdir(uploadsDir, { recursive: true });
 await fs.mkdir(dataDir, { recursive: true });
@@ -35,6 +45,17 @@ if (cloudinaryEnabled) {
     api_key: process.env.CLOUDINARY_API_KEY,
     api_secret: process.env.CLOUDINARY_API_SECRET
   });
+}
+
+try {
+  if (process.env.FFMPEG_PATH) {
+    ffmpeg.setFfmpegPath(process.env.FFMPEG_PATH);
+  }
+  if (process.env.FFPROBE_PATH) {
+    ffmpeg.setFfprobePath(process.env.FFPROBE_PATH);
+  }
+} catch (error) {
+  console.warn('FFmpeg configuration issue:', error.message);
 }
 
 const storage = multer.diskStorage({
@@ -138,6 +159,211 @@ function createPlaceholderThumbnail(title) {
 
 function isLocalUrl(url) {
   return !url || url.includes('localhost') || url.includes('127.0.0.1');
+}
+
+function isRemoteAbsoluteUrl(url) {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+function guessExtension(url, fallback = '.mp4') {
+  try {
+    const ext = path.extname(new URL(url).pathname);
+    if (ext && ext.length <= 5) {
+      return ext;
+    }
+  } catch {
+    // ignore
+  }
+  return fallback;
+}
+
+async function downloadToTemp(url, { label = 'asset', extension } = {}) {
+  if (!isRemoteAbsoluteUrl(url)) {
+    throw new Error(`URL non valide pour le téléchargement: ${url}`);
+  }
+
+  const ext = extension || guessExtension(url);
+  const tempPath = path.join(
+    os.tmpdir(),
+    `${TEMP_PREFIX}-${label}-${Date.now()}${ext}`
+  );
+
+  const response = await fetch(url);
+  if (!response.ok || !response.body) {
+    throw new Error(`Téléchargement impossible (${response.status})`);
+  }
+
+  const nodeStream =
+    typeof response.body.pipe === 'function'
+      ? response.body
+      : Readable.fromWeb(response.body);
+
+  await pipeline(nodeStream, createWriteStream(tempPath));
+  return tempPath;
+}
+
+async function cleanupTempFiles(paths = []) {
+  await Promise.all(
+    paths
+      .filter(Boolean)
+      .map((filePath) => fs.unlink(filePath).catch(() => {}))
+  );
+}
+
+function buildClipPlan(clips = [], targetDuration = 30) {
+  if (!Array.isArray(clips) || clips.length === 0) {
+    return [];
+  }
+
+  const sortedClips = clips.slice(0, MAX_RENDER_CLIPS);
+  const plan = [];
+  let remaining = Math.max(5, targetDuration);
+
+  for (const clip of sortedClips) {
+    if (!clip?.url || !isRemoteAbsoluteUrl(clip.url)) continue;
+    const clipDuration = Math.max(
+      2,
+      Math.min(Number(clip.duration) || MAX_CLIP_SEGMENT, MAX_CLIP_SEGMENT)
+    );
+
+    const requestedDuration = Math.min(clipDuration, remaining);
+    plan.push({
+      id: clip.id || crypto.randomUUID(),
+      url: clip.url,
+      requestedDuration: Number(requestedDuration.toFixed(2))
+    });
+    remaining -= requestedDuration;
+    if (remaining <= 1) break;
+  }
+
+  if (plan.length && remaining > 1) {
+    plan[plan.length - 1].requestedDuration = Number(
+      (plan[plan.length - 1].requestedDuration + remaining).toFixed(2)
+    );
+    remaining = 0;
+  }
+
+  return remaining <= targetDuration ? plan : [];
+}
+
+async function executeFfmpegConcat(plan, audioPath, outputPath) {
+  return new Promise((resolve, reject) => {
+    const command = ffmpeg();
+    plan.forEach((clip) => {
+      command.input(clip.localPath);
+    });
+
+    if (audioPath) {
+      command.input(audioPath);
+    }
+
+    const filters = [];
+    const labels = [];
+
+    plan.forEach((clip, idx) => {
+      const label = plan.length === 1 ? 'vout' : `seg${idx}`;
+      labels.push(`[${label}]`);
+      filters.push(
+        `[${idx}:v]scale=1080:-2:force_original_aspect_ratio=cover,setsar=1,fps=30,trim=0:${clip.requestedDuration},setpts=PTS-STARTPTS[${label}]`
+      );
+    });
+
+    if (plan.length > 1) {
+      filters.push(
+        `${labels.join('')}concat=n=${plan.length}:v=1:a=0[vout]`
+      );
+    }
+
+    let outputs = ['vout'];
+    if (audioPath) {
+      const audioIndex = plan.length;
+      filters.push(
+        `[${audioIndex}:a]aloop=loop=-1:size=0,volume=1[aout]`
+      );
+      outputs = ['vout', 'aout'];
+    }
+
+    command.complexFilter(filters, outputs);
+    const baseOutputOptions = [
+      '-map [vout]',
+      '-c:v libx264',
+      '-preset veryfast',
+      '-pix_fmt yuv420p',
+      '-movflags +faststart'
+    ];
+
+    if (audioPath) {
+      command.outputOptions([...baseOutputOptions, '-map [aout]', '-shortest']);
+      command.audioCodec('aac');
+    } else {
+      command.outputOptions([...baseOutputOptions, '-an']);
+    }
+
+    command.on('end', () => resolve(outputPath));
+    command.on('error', reject);
+    command.save(outputPath);
+  });
+}
+
+async function renderMontageWithFfmpeg({
+  editId,
+  clips,
+  targetDuration,
+  musicUrl
+}) {
+  if (!realRenderEnabled) {
+    return null;
+  }
+
+  const plan = buildClipPlan(clips, targetDuration);
+  if (!plan.length) {
+    return null;
+  }
+
+  const downloadedFiles = [];
+  try {
+    for (const clip of plan) {
+      const localPath = await downloadToTemp(clip.url, {
+        label: `clip-${clip.id}`,
+        extension: '.mp4'
+      });
+      clip.localPath = localPath;
+      downloadedFiles.push(localPath);
+    }
+
+    let audioPath = null;
+    if (musicUrl && isRemoteAbsoluteUrl(musicUrl)) {
+      try {
+        audioPath = await downloadToTemp(musicUrl, {
+          label: 'music',
+          extension: guessExtension(musicUrl, '.mp3')
+        });
+        downloadedFiles.push(audioPath);
+      } catch (error) {
+        console.warn('Téléchargement audio impossible:', error.message);
+      }
+    }
+
+    const outputPath = path.join(
+      os.tmpdir(),
+      `${TEMP_PREFIX}-render-${editId}-${Date.now()}.mp4`
+    );
+    await executeFfmpegConcat(plan, audioPath, outputPath);
+    return {
+      videoPath: outputPath,
+      clipCount: plan.length
+    };
+  } catch (error) {
+    console.error('FFmpeg render failed:', error.message);
+    return null;
+  } finally {
+    await cleanupTempFiles(downloadedFiles);
+  }
 }
 
 async function updateEdit(editId, updates) {
@@ -513,11 +739,11 @@ async function fetchClips(theme, count = 8) {
   }
 }
 
-async function uploadPlaceholderVideo(editId) {
+async function uploadPlaceholderVideo(editId, title = null) {
   if (!cloudinaryEnabled) {
     return {
       secure_url: sampleVideoUrl,
-      thumbnail: createPlaceholderThumbnail(`Montage ${editId}`),
+      thumbnail: createPlaceholderThumbnail(title || `Montage ${editId}`),
       provider: 'placeholder'
     };
   }
@@ -534,6 +760,55 @@ async function uploadPlaceholderVideo(editId) {
       result.secure_url.replace('/upload/', '/upload/so_auto,q_auto,w_600/'),
     provider: 'cloudinary'
   };
+}
+
+async function uploadFinalVideo(editId, { localPath, title } = {}) {
+  if (localPath) {
+    try {
+      if (cloudinaryEnabled) {
+        const result = await cloudinary.uploader.upload(localPath, {
+          resource_type: 'video',
+          folder: 'auralyptix/generated',
+          public_id: `montage_${editId}_${Date.now()}`,
+          overwrite: true,
+          eager: [
+            {
+              format: 'jpg',
+              transformation: { width: 720, crop: 'fill', public_id: 'thumb' }
+            }
+          ]
+        });
+        await fs.unlink(localPath).catch(() => {});
+        return {
+          secure_url: result.secure_url,
+          thumbnail:
+            result.secure_url.replace('/upload/', '/upload/so_0/'),
+          provider: 'cloudinary'
+        };
+      }
+
+      const fileName = `montage_${editId}_${Date.now()}.mp4`;
+      const destination = path.join(uploadsDir, fileName);
+      await fs.copyFile(localPath, destination);
+      await fs.unlink(localPath).catch(() => {});
+      const publicBaseUrl = getPublicBaseUrl();
+      return {
+        secure_url: `${publicBaseUrl}/uploads/${fileName}`,
+        thumbnail: null,
+        provider: 'local'
+      };
+    } catch (error) {
+      console.error(
+        'Upload final échoué, fallback placeholder:',
+        error.message
+      );
+      if (localPath) {
+        await fs.unlink(localPath).catch(() => {});
+      }
+    }
+  }
+
+  return uploadPlaceholderVideo(editId, title);
 }
 
 async function runGenerationJob(jobId, payload) {
@@ -626,38 +901,51 @@ async function runGenerationJob(jobId, payload) {
     });
 
     const videoResult = await runStep('editing', async () => {
-      await sleep(1500);
-      
-      // Utiliser la durée cible ou la durée détectée
       const finalDuration = targetDuration || beats.duration || 30;
-      
-      // Générer les sous-titres avec timestamps réels
+
       const subtitles = (transcription.words || [])
-        .filter(word => {
+        .filter((word) => {
           if (!audioSegment) return true;
-          const wordStart = word.start / 1000; // Convertir ms en secondes
-          return wordStart >= audioSegment.start && 
-                 (!audioSegment.end || wordStart <= audioSegment.end);
+          const wordStart = word.start / 1000;
+          return (
+            wordStart >= audioSegment.start &&
+            (!audioSegment.end || wordStart <= audioSegment.end)
+          );
         })
-        .slice(0, Math.min(50, Math.floor(finalDuration / 2))) // ~1 sous-titre toutes les 2 secondes
-        .map(word => ({
+        .slice(0, Math.min(50, Math.floor(finalDuration / 2)))
+        .map((word) => ({
           text: word.text,
           start: word.start / 1000,
           end: word.end / 1000,
           confidence: word.confidence
         }));
 
+      let renderedMontage = null;
+      if (realRenderEnabled) {
+        renderedMontage = await renderMontageWithFfmpeg({
+          editId,
+          clips,
+          targetDuration: finalDuration,
+          musicUrl: payload.musicPublicUrl || payload.musicUrl
+        });
+      }
+
       return {
         duration: finalDuration,
         segments: beats.sections,
         subtitles,
-        clip_count: clips.length,
-        bpm: beats.bpm
+        clip_count: renderedMontage?.clipCount || clips.length,
+        bpm: beats.bpm,
+        renderedVideoPath: renderedMontage?.videoPath || null,
+        render_mode: renderedMontage ? 'ffmpeg' : 'simulated'
       };
     });
 
     const uploadResult = await runStep('upload_final', () =>
-      uploadPlaceholderVideo(payload.editId)
+      uploadFinalVideo(payload.editId, {
+        localPath: videoResult.renderedVideoPath,
+        title: payload.title
+      })
     );
 
     await updateEdit(payload.editId, {
@@ -673,7 +961,8 @@ async function runGenerationJob(jobId, payload) {
       bpm: videoResult.bpm,
       clip_count: videoResult.clip_count,
       transcription_text: transcription.text || '',
-      transcription_summary: transcription.summary || []
+      transcription_summary: transcription.summary || [],
+      render_mode: videoResult.render_mode
     });
 
     await updateJob(jobId, {
