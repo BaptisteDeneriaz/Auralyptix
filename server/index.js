@@ -327,11 +327,13 @@ async function renderMontageWithFfmpeg({
   musicUrl
 }) {
   if (!realRenderEnabled) {
+    console.log('[renderMontageWithFfmpeg] REAL_RENDER_ENABLED=false -> simulation');
     return null;
   }
 
   const plan = buildClipPlan(clips, targetDuration);
   if (!plan.length) {
+    console.warn('[renderMontageWithFfmpeg] Aucun clip dans le plan, fallback simulation');
     return null;
   }
 
@@ -360,7 +362,13 @@ async function renderMontageWithFfmpeg({
       os.tmpdir(),
       `${TEMP_PREFIX}-render-${editId}-${Date.now()}.mp4`
     );
+    console.log('[renderMontageWithFfmpeg] Lancement FFmpeg...', {
+      clipCount: plan.length,
+      targetDuration,
+      hasMusic: Boolean(audioPath)
+    });
     await executeFfmpegConcat(plan, audioPath, outputPath);
+    console.log('[renderMontageWithFfmpeg] FFmpeg terminé', outputPath);
     return {
       videoPath: outputPath,
       clipCount: plan.length
@@ -723,6 +731,7 @@ async function uploadFinalVideo(editId, { localPath, title } = {}) {
   if (localPath) {
     try {
       if (cloudinaryEnabled) {
+        console.log('[upload_final] Upload vers Cloudinary...');
         const result = await cloudinary.uploader.upload(localPath, {
           resource_type: 'video',
           folder: 'auralyptix/generated',
@@ -735,6 +744,7 @@ async function uploadFinalVideo(editId, { localPath, title } = {}) {
             }
           ]
         });
+        console.log('[upload_final] Cloudinary OK', result.secure_url);
         await fs.unlink(localPath).catch(() => {});
         return {
           secure_url: result.secure_url,
@@ -744,6 +754,7 @@ async function uploadFinalVideo(editId, { localPath, title } = {}) {
         };
       }
 
+      console.log('[upload_final] Cloudinary désactivé, copie locale');
       const fileName = `montage_${editId}_${Date.now()}.mp4`;
       const destination = path.join(uploadsDir, fileName);
       await fs.copyFile(localPath, destination);
@@ -846,6 +857,7 @@ async function runGenerationJob(jobId, payload) {
     let scenePlan = [];
     await runStep('scene_analysis', async () => {
       if (!payload.sourceVideo?.url) {
+      console.warn('[scene_analysis] Aucune vidéo source fournie');
         return { used: false, scenes: 0 };
       }
       const scenes = await analyzeSourceVideo({
