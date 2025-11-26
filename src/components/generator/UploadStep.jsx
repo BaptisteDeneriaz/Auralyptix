@@ -26,6 +26,22 @@ export default function UploadStep({
   const [uploadingIntro, setUploadingIntro] = useState(false);
   const [uploadingSource, setUploadingSource] = useState(false);
   const [dragActive, setDragActive] = useState(false);
+  const [sourceUrl, setSourceUrl] = useState('');
+  const handleSourceUrlApply = () => {
+    if (!sourceUrl || !sourceUrl.startsWith('http')) {
+      alert('Merci de fournir une URL vidéo valide (https://...)');
+      return;
+    }
+    setSourceVideo({
+      file_url: sourceUrl,
+      public_url: sourceUrl,
+      name: 'Vidéo externe',
+      size: 'URL externe',
+      mime_type: 'video/mp4',
+      durationSeconds: null,
+      isExternal: true
+    });
+  };
 
   const audioDuration = useMemo(() => {
     return musicData?.durationSeconds || null;
@@ -480,6 +496,11 @@ export default function UploadStep({
                 {sourceVideo.size}
                 {sourceVideo.durationSeconds ? ` • ${sourceVideo.durationSeconds}s` : ''}
               </p>
+              {sourceVideo.isExternal && (
+                <p className="text-xs text-blue-300 break-all">
+                  {sourceVideo.public_url}
+                </p>
+              )}
             </div>
             <button
               onClick={() => setSourceVideo(null)}
@@ -493,6 +514,25 @@ export default function UploadStep({
             {uploadingSource
               ? 'Upload en cours...'
               : 'Aucune vidéo source ajoutée pour le moment.'}
+          </div>
+        )}
+        {!sourceVideo && (
+          <div className="flex flex-col gap-2">
+            <input
+              type="url"
+              value={sourceUrl}
+              onChange={(e) => setSourceUrl(e.target.value)}
+              placeholder="https://exemple.com/ma-video.mp4"
+              className="w-full rounded-xl bg-black/30 border border-white/10 px-4 py-3 text-white placeholder:text-gray-500 focus:outline-none focus:border-purple-500"
+            />
+            <Button
+              variant="outline"
+              onClick={handleSourceUrlApply}
+              disabled={!sourceUrl}
+              className="self-start border-white/30 text-white hover:bg-white/10"
+            >
+              Utiliser ce lien
+            </Button>
           </div>
         )}
       </div>
