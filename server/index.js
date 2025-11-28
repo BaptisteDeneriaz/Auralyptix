@@ -393,6 +393,12 @@ async function renderMontageWithFfmpeg({
     };
   } catch (error) {
     console.error('FFmpeg render failed:', error.message);
+    if (error.cmd) {
+      console.error('[ffmpeg] Command:', error.cmd);
+    }
+    if (error.stderr) {
+      console.error('[ffmpeg] Stderr:', error.stderr);
+    }
     return null;
   } finally {
     await cleanupTempFiles(downloadedFiles);
