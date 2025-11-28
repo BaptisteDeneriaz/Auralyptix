@@ -370,14 +370,16 @@ async function renderMontageWithFfmpeg({
     console.log('[renderMontageWithFfmpeg] Plan final FFmpeg', {
       clipCount: plan.length,
       targetDuration,
-      hasMusic: Boolean(audioPath),
-      clips: plan.map((clip) => ({
+      hasMusic: Boolean(audioPath)
+    });
+    plan.forEach((clip, index) => {
+      console.log(`[renderMontageWithFfmpeg] Clip ${index + 1}/${plan.length}`, {
         id: clip.id,
         source: clip.url,
         localPath: clip.localPath,
-        duration: clip.requestedDuration,
+        requestedDuration: clip.requestedDuration,
         start: clip.start
-      }))
+      });
     });
     if (audioPath) {
       console.log('[renderMontageWithFfmpeg] Audio utilisé', { audioPath });
