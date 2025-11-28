@@ -19,6 +19,59 @@ const FALLBACK_STEPS = Object.keys(STEP_META).map((name) => ({
   status: 'pending'
 }));
 
+function getErrorHelp(message = '') {
+  if (!message) return null;
+  const lower = message.toLowerCase();
+  if (lower.includes('ffmpeg')) {
+    return {
+      title: 'FFmpeg n’a pas pu assembler la vidéo',
+      tips: [
+        'Vérifie que la vidéo source est un vrai MP4/ MOV accessible publiquement.',
+        'Assure-toi que REAL_RENDER_ENABLED est bien à true sur Render.',
+        'Confirme que le serveur dispose de ffmpeg/ffprobe (script install-ffmpeg exécuté).'
+      ]
+    };
+  }
+  if (lower.includes('cloudinary')) {
+    return {
+      title: 'Upload Cloudinary échoué',
+      tips: [
+        'Recontrôle les variables CLOUDINARY_CLOUD_NAME / API_KEY / API_SECRET.',
+        'Vérifie que le fichier généré n’a pas été supprimé avant l’upload.',
+        'Tu peux tester la même requête depuis Postman vers /api/upload pour valider tes clés.'
+      ]
+    };
+  }
+  if (lower.includes('scène') || lower.includes('scene')) {
+    return {
+      title: 'Analyse vidéo impossible',
+      tips: [
+        'Utilise un MP4 avec du mouvement (pas un flux YouTube / page HTML).',
+        'Si tu utilises une URL externe, assure-toi qu’elle pointe vers un fichier direct.',
+        'Tu peux aussi désactiver l’API Vision (VISION_API_URL) pour revenir au fallback local.'
+      ]
+    };
+  }
+  if (lower.includes('upload') || lower.includes('fetch')) {
+    return {
+      title: 'Problème réseau lors de l’upload',
+      tips: [
+        'Teste la même action en local (npm run dev:server) pour voir les logs.',
+        'Assure-toi que PUBLIC_BASE_URL pointe vers ton domaine Render et pas vers Redis.',
+        'Si tu utilises une URL, vérifie qu’elle retourne bien un fichier (200 / OK).'
+      ]
+    };
+  }
+  return {
+    title: 'Erreur détectée',
+    tips: [
+      'Relance la génération après avoir vérifié les inputs.',
+      'Regarde le message exact ci-dessous et envoie-le si tu as besoin d’aide.',
+      'Tu peux aussi copier l’URL /api/status/<jobId> pour voir tous les détails JSON.'
+    ]
+  };
+}
+
 export default function GeneratingStep({ jobInfo }) {
   const jobId = jobInfo?.job?.id;
   const [job, setJob] = useState(jobInfo?.job || null);
@@ -67,6 +120,8 @@ export default function GeneratingStep({ jobInfo }) {
       label: STEP_META[step.name]?.label || step.name
     }));
   }, [job]);
+
+  const errorHelp = useMemo(() => getErrorHelp(error || job?.error), [error, job?.error]);
 
   const completed = steps.filter((s) => s.status === 'done').length;
   const progress = steps.length
@@ -223,6 +278,17 @@ export default function GeneratingStep({ jobInfo }) {
         <div className="max-w-xl mx-auto w-full rounded-2xl border border-red-500/40 bg-red-500/10 p-4 text-sm text-red-100">
           <p className="font-semibold text-red-200 mb-1">Détail de l’erreur</p>
           <p>{error}</p>
+        </div>
+      )}
+
+      {job?.status === 'failed' && errorHelp && (
+        <div className="max-w-xl mx-auto w-full rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-gray-200 space-y-2">
+          <p className="font-semibold text-white">{errorHelp.title}</p>
+          <ul className="list-disc list-inside text-gray-300 space-y-1">
+            {errorHelp.tips.map((tip, index) => (
+              <li key={index}>{tip}</li>
+            ))}
+          </ul>
         </div>
       )}
 
