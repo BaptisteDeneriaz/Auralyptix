@@ -392,6 +392,9 @@ async function renderMontageWithFfmpeg({
       clipCount: plan.length
     };
   } catch (error) {
+    const stderrSnippet = typeof error.stderr === 'string'
+      ? error.stderr.split('\n').slice(-6).join(' ').trim()
+      : null;
     console.error('FFmpeg render failed:', error.message);
     if (error.cmd) {
       console.error('[ffmpeg] Command:', error.cmd);
@@ -399,7 +402,16 @@ async function renderMontageWithFfmpeg({
     if (error.stderr) {
       console.error('[ffmpeg] Stderr:', error.stderr);
     }
-    return null;
+    const richError = new Error(
+      stderrSnippet
+        ? `FFmpeg a échoué: ${stderrSnippet}`
+        : `FFmpeg a échoué: ${error.message}`
+    );
+    richError.details = {
+      cmd: error.cmd,
+      stderr: stderrSnippet || error.stderr || error.message
+    };
+    throw richError;
   } finally {
     await cleanupTempFiles(downloadedFiles);
   }
@@ -836,11 +848,15 @@ async function runGenerationJob(jobId, payload) {
       });
       return output;
     } catch (error) {
-      await updateJobStep(jobId, name, {
-        status: 'error',
-        completed_at: new Date().toISOString(),
-        error: error.message
-      });
+    const errorPayload = {
+      status: 'error',
+      completed_at: new Date().toISOString(),
+      error: error.message
+    };
+    if (error.details) {
+      errorPayload.error_details = error.details;
+    }
+    await updateJobStep(jobId, name, errorPayload);
       throw error;
     }
   };
@@ -994,11 +1010,13 @@ async function runGenerationJob(jobId, payload) {
     await updateJob(jobId, {
       status: 'failed',
       error: error.message,
+      error_details: error.details || null,
       completed_at: new Date().toISOString()
     });
     await updateEdit(payload.editId, {
       status: 'failed',
-      error: error.message
+      error: error.message,
+      error_details: error.details || null
     });
   }
 }

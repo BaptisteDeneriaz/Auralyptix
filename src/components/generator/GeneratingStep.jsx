@@ -268,6 +268,11 @@ export default function GeneratingStep({ jobInfo }) {
                     {step.error}
                   </span>
                 )}
+                {step.status === 'error' && step.error_details?.stderr && (
+                  <span className="text-[11px] text-red-200 mt-1 font-mono break-all">
+                    {step.error_details.stderr}
+                  </span>
+                )}
               </div>
             </motion.div>
           );
@@ -278,6 +283,11 @@ export default function GeneratingStep({ jobInfo }) {
         <div className="max-w-xl mx-auto w-full rounded-2xl border border-red-500/40 bg-red-500/10 p-4 text-sm text-red-100">
           <p className="font-semibold text-red-200 mb-1">Détail de l’erreur</p>
           <p>{error}</p>
+        </div>
+      )}
+      {job?.status === 'failed' && job?.error_details?.stderr && (
+        <div className="max-w-xl mx-auto w-full rounded-2xl border border-red-500/40 bg-red-500/5 p-4 text-xs text-red-100 font-mono break-all">
+          {job.error_details.stderr}
         </div>
       )}
 
