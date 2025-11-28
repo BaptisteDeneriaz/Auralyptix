@@ -925,7 +925,7 @@ async function runGenerationJob(jobId, payload) {
       let renderedMontage = null;
       if (realRenderEnabled) {
         renderedMontage = await renderMontageWithFfmpeg({
-          editId,
+          editId: payload.editId,
           clips,
           targetDuration: finalDuration,
           musicUrl: payload.musicPublicUrl || payload.musicUrl
