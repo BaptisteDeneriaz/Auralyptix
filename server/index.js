@@ -22,13 +22,18 @@ const PORT = process.env.PORT || 4000;
 const uploadsDir = path.join(__dirname, 'uploads');
 const dataDir = path.join(__dirname, 'data');
 
-const realRenderEnabled = process.env.REAL_RENDER_ENABLED === 'true';
+const realRenderEnabled = (() => {
+  const raw = `${process.env.REAL_RENDER_ENABLED || ''}`.trim().toLowerCase();
+  return ['1', 'true', 'yes', 'on'].includes(raw);
+})();
 const MAX_RENDER_CLIPS = Number(process.env.RENDER_MAX_CLIPS || 6);
 const MAX_CLIP_SEGMENT = Number(process.env.RENDER_CLIP_SEGMENT_MAX || 6);
 const visionApiConfigured =
   Boolean(process.env.VISION_API_URL) && Boolean(process.env.VISION_API_KEY);
 const pixabayAudioConfigured = Boolean(process.env.PIXABAY_AUDIO_API_KEY);
 const TEMP_PREFIX = 'auralyptix';
+
+console.log('[config] REAL_RENDER_ENABLED raw:', process.env.REAL_RENDER_ENABLED, '=>', realRenderEnabled);
 
 await fs.mkdir(uploadsDir, { recursive: true });
 await fs.mkdir(dataDir, { recursive: true });
