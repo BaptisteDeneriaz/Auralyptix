@@ -102,7 +102,7 @@ export default function GeneratingStep({ jobInfo }) {
             : 'L\'IA peaufine ton montage professionnel'}
         </p>
         <div className="inline-flex items-center gap-2 text-xs uppercase tracking-wide px-3 py-1 rounded-full bg-white/10 text-white/80">
-          <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+          <span className={`w-2 h-2 rounded-full ${job?.status === 'failed' ? 'bg-red-400' : job?.status === 'completed' ? 'bg-green-400' : 'bg-blue-400 animate-pulse'}`} />
           {statusBadge}
         </div>
       </div>
@@ -208,11 +208,23 @@ export default function GeneratingStep({ jobInfo }) {
                   {step.label}
                 </span>
                 <span className="text-xs text-gray-400">{statusText}</span>
+                {step.status === 'error' && step.error && (
+                  <span className="text-xs text-red-300 mt-1">
+                    {step.error}
+                  </span>
+                )}
               </div>
             </motion.div>
           );
         })}
       </div>
+
+      {job?.status === 'failed' && error && (
+        <div className="max-w-xl mx-auto w-full rounded-2xl border border-red-500/40 bg-red-500/10 p-4 text-sm text-red-100">
+          <p className="font-semibold text-red-200 mb-1">Détail de l’erreur</p>
+          <p>{error}</p>
+        </div>
+      )}
 
       {jobId && (
         <div className="text-center text-gray-500 text-sm">
