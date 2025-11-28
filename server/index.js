@@ -367,11 +367,22 @@ async function renderMontageWithFfmpeg({
       os.tmpdir(),
       `${TEMP_PREFIX}-render-${editId}-${Date.now()}.mp4`
     );
-    console.log('[renderMontageWithFfmpeg] Lancement FFmpeg...', {
+    console.log('[renderMontageWithFfmpeg] Plan final FFmpeg', {
       clipCount: plan.length,
       targetDuration,
-      hasMusic: Boolean(audioPath)
+      hasMusic: Boolean(audioPath),
+      clips: plan.map((clip) => ({
+        id: clip.id,
+        source: clip.url,
+        localPath: clip.localPath,
+        duration: clip.requestedDuration,
+        start: clip.start
+      }))
     });
+    if (audioPath) {
+      console.log('[renderMontageWithFfmpeg] Audio utilisé', { audioPath });
+    }
+    console.log('[renderMontageWithFfmpeg] Lancement FFmpeg...');
     await executeFfmpegConcat(plan, audioPath, outputPath);
     console.log('[renderMontageWithFfmpeg] FFmpeg terminé', outputPath);
     return {
