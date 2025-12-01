@@ -28,6 +28,7 @@ const realRenderEnabled = (() => {
 })();
 const MAX_RENDER_CLIPS = Number(process.env.RENDER_MAX_CLIPS || 6);
 const MAX_CLIP_SEGMENT = Number(process.env.RENDER_CLIP_SEGMENT_MAX || 6);
+const MIN_RENDER_DURATION = Number(process.env.RENDER_MIN_DURATION || 2);
 const visionApiConfigured =
   Boolean(process.env.VISION_API_URL) && Boolean(process.env.VISION_API_KEY);
 const pixabayAudioConfigured = Boolean(process.env.PIXABAY_AUDIO_API_KEY);
@@ -278,7 +279,7 @@ async function executeFfmpegConcat(plan, audioPath, outputPath) {
       command.input(audioPath);
     }
 
-    const filters = [];
+const filters = [];
     const labels = [];
 
     // Chaîne uniquement vidéo : on laisse l'audio en dehors du filtre complexe
@@ -787,6 +788,10 @@ async function uploadPlaceholderVideo(editId, title = null) {
 async function uploadFinalVideo(editId, { localPath, title } = {}) {
   if (localPath) {
     try {
+      const stats = await fs.stat(localPath);
+      if (!stats.size || stats.size < 1024) {
+        throw new Error('Invalid video file: taille trop faible');
+      }
       if (cloudinaryEnabled) {
         console.log('[upload_final] Upload vers Cloudinary...');
         const result = await cloudinary.uploader.upload(localPath, {
