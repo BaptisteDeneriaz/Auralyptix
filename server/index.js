@@ -285,10 +285,13 @@ async function executeFfmpegConcat(plan, audioPath, outputPath) {
     plan.forEach((clip, idx) => {
       const label = plan.length === 1 ? 'vout' : `seg${idx}`;
       labels.push(`[${label}]`);
+      const start = Number.isFinite(clip.start) ? Math.max(0, Number(clip.start)) : 0;
+      const duration = Math.max(0.25, Number(clip.requestedDuration) || MAX_CLIP_SEGMENT);
       filters.push(
-        // Render utilise une version de ffmpeg sans force_original_aspect_ratio=cover
-        // On simplifie donc le scale pour éviter l'erreur "Unable to parse option value 'cover'"
-        `[${idx}:v]scale=1080:-2,setsar=1,fps=30,trim=0:${clip.requestedDuration},setpts=PTS-STARTPTS[${label}]`
+        // On découpe directement dans la vidéo source en utilisant start/duration,
+        // puis on normalise le flux pour le montage final.
+        `[${idx}:v]trim=start=${start}:duration=${duration},setpts=PTS-STARTPTS,` +
+          `scale=1080:-2,setsar=1,fps=30[${label}]`
       );
     });
 
@@ -935,13 +938,52 @@ async function runGenerationJob(jobId, payload) {
       );
     }
 
-    const clips = scenePlan;
+    // Génération de clips ultra dynamiques basés sur les beats
+    let clips = scenePlan;
+    let clipNote = 'Segments générés via analyse vidéo';
+
+    if (!payload.introVideos?.length && Array.isArray(beats.beats) && beats.beats.length) {
+      const beatTimes = beats.beats;
+      const totalBeats = beatTimes.length;
+      const targetSeconds = targetDuration;
+      const approxPerClip = 0.5; // chaque clip ~0,5s pour un style très cut
+      const maxClips = Math.min(
+        Math.floor(targetSeconds / approxPerClip),
+        MAX_RENDER_CLIPS * 4 // autoriser plus de micro-clips que la limite de base
+      );
+
+      const selectedBeats =
+        maxClips < totalBeats
+          ? beatTimes.filter((_, idx) => idx % Math.ceil(totalBeats / maxClips) === 0)
+          : beatTimes;
+
+      const dynamicClips = [];
+      const sourceUrl = payload.sourceVideo?.public_url || payload.sourceVideo?.url;
+
+      selectedBeats.forEach((beatTime, index) => {
+        const start = Math.max(0, beatTime - 0.25); // démarrer un peu avant le beat
+        const duration = 0.5 + (index % 3) * 0.1; // variations légères pour casser la monotonie
+        dynamicClips.push({
+          id: `beat-${index}`,
+          url: sourceUrl,
+          start,
+          requestedDuration: duration,
+          label: index === 0 ? 'intro' : 'beat'
+        });
+      });
+
+      if (dynamicClips.length) {
+        clips = dynamicClips;
+        clipNote = `Montage dynamique basé sur ${dynamicClips.length} beats`;
+      }
+    }
+
     await updateJobStep(jobId, 'clip_scouting', {
       status: 'done',
       completed_at: new Date().toISOString(),
       output: {
-        note: 'Segments générés via analyse vidéo',
-        clip_count: scenePlan.length
+        note: clipNote,
+        clip_count: clips.length
       }
     });
 
