@@ -269,6 +269,7 @@ function buildClipPlan(clips = [], targetDuration = 30) {
 async function executeFfmpegConcat(plan, audioPath, outputPath) {
   return new Promise((resolve, reject) => {
     const command = ffmpeg();
+    const stderrBuffer = [];
     plan.forEach((clip) => {
       command.input(clip.localPath);
     });
@@ -280,6 +281,7 @@ async function executeFfmpegConcat(plan, audioPath, outputPath) {
     const filters = [];
     const labels = [];
 
+    // Chaîne uniquement vidéo : on laisse l'audio en dehors du filtre complexe
     plan.forEach((clip, idx) => {
       const label = plan.length === 1 ? 'vout' : `seg${idx}`;
       labels.push(`[${label}]`);
@@ -294,16 +296,7 @@ async function executeFfmpegConcat(plan, audioPath, outputPath) {
       );
     }
 
-    let outputs = ['vout'];
-    if (audioPath) {
-      const audioIndex = plan.length;
-      filters.push(
-        `[${audioIndex}:a]aloop=loop=-1:size=0,volume=1[aout]`
-      );
-      outputs = ['vout', 'aout'];
-    }
-
-    command.complexFilter(filters, outputs);
+    command.complexFilter(filters, ['vout']);
     const baseOutputOptions = [
       '-map [vout]',
       '-c:v libx264',
@@ -313,14 +306,36 @@ async function executeFfmpegConcat(plan, audioPath, outputPath) {
     ];
 
     if (audioPath) {
-      command.outputOptions([...baseOutputOptions, '-map [aout]', '-shortest']);
+      const audioIndex = plan.length; // l'audio est ajouté après les vidéos
+      command.outputOptions([
+        ...baseOutputOptions,
+        `-map ${audioIndex}:a`,
+        '-shortest'
+      ]);
       command.audioCodec('aac');
     } else {
       command.outputOptions([...baseOutputOptions, '-an']);
     }
 
     command.on('end', () => resolve(outputPath));
-    command.on('error', reject);
+    command.on('stderr', (line) => {
+      const text = line?.toString();
+      if (!text) return;
+      const clean = text.trim();
+      if (!clean) return;
+      stderrBuffer.push(clean);
+      if (stderrBuffer.length > 40) {
+        stderrBuffer.shift();
+      }
+    });
+    command.on('error', (err, _stdout, stderr) => {
+      if (err) {
+        err.stderr =
+          (stderr && stderr.trim()) ||
+          stderrBuffer.slice(Math.max(0, stderrBuffer.length - 12)).join(' | ');
+      }
+      reject(err);
+    });
     command.save(outputPath);
   });
 }
