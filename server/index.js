@@ -298,7 +298,8 @@ async function executeFfmpegConcat(plan, audioPath, outputPath) {
       );
     }
 
-    command.complexFilter(filters, ['vout']);
+    // On laisse ffmpeg utiliser directement les labels définis dans la chaîne
+    command.complexFilter(filters);
     const baseOutputOptions = [
       '-map [vout]',
       '-c:v libx264',
