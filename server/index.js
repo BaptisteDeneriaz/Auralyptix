@@ -286,7 +286,9 @@ async function executeFfmpegConcat(plan, audioPath, outputPath) {
       const label = plan.length === 1 ? 'vout' : `seg${idx}`;
       labels.push(`[${label}]`);
       filters.push(
-        `[${idx}:v]scale=1080:-2:force_original_aspect_ratio=cover,setsar=1,fps=30,trim=0:${clip.requestedDuration},setpts=PTS-STARTPTS[${label}]`
+        // Render utilise une version de ffmpeg sans force_original_aspect_ratio=cover
+        // On simplifie donc le scale pour éviter l'erreur "Unable to parse option value 'cover'"
+        `[${idx}:v]scale=1080:-2,setsar=1,fps=30,trim=0:${clip.requestedDuration},setpts=PTS-STARTPTS[${label}]`
       );
     });
 
