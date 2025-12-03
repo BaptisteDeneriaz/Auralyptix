@@ -14,6 +14,7 @@ import { pipeline } from 'stream/promises';
 import ffmpeg from 'fluent-ffmpeg';
 import { fetchAudioPresets } from './services/audioLibrary.js';
 import { analyzeSourceVideo } from './services/vision.js';
+import { scoreVideoHighlights } from './services/highlightScoring.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -944,10 +945,21 @@ async function runGenerationJob(jobId, payload) {
     }
 
     // Génération de clips ultra dynamiques basés sur les beats
+    // NOTE: par défaut désactivé en production pour garantir des durées stables.
+    // Active-le uniquement si RENDER_BEATS_MODE=true dans l'environnement.
     let clips = scenePlan;
     let clipNote = 'Segments générés via analyse vidéo';
 
-    if (!payload.introVideos?.length && Array.isArray(beats.beats) && beats.beats.length) {
+    const beatsModeEnabled = `${process.env.RENDER_BEATS_MODE || ''}`
+      .trim()
+      .toLowerCase() === 'true';
+
+    if (
+      beatsModeEnabled &&
+      !payload.introVideos?.length &&
+      Array.isArray(beats.beats) &&
+      beats.beats.length
+    ) {
       const beatTimes = beats.beats;
       const totalBeats = beatTimes.length;
       const targetSeconds = targetDuration;
@@ -1321,6 +1333,25 @@ app.get('/api/status/:jobId', async (req, res) => {
 app.get('/api/jobs', async (_req, res) => {
   const jobs = await readJobs();
   res.json(jobs);
+});
+
+// Endpoint de debug pour le scoring des meilleurs moments
+app.get('/api/debug/highlights', async (req, res) => {
+  const { videoUrl, duration } = req.query;
+
+  if (!videoUrl) {
+    return res.status(400).json({ message: 'videoUrl est requis' });
+  }
+
+  const targetDuration = Number(duration) || 30;
+
+  try {
+    const segments = await scoreVideoHighlights(videoUrl, targetDuration);
+    res.json({ segments, targetDuration });
+  } catch (error) {
+    console.error('[debug/highlights] Error:', error.message);
+    res.status(500).json({ message: error.message });
+  }
 });
 
 app.get('/api/audio-library', async (_req, res) => {
