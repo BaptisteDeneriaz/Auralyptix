@@ -151,7 +151,7 @@ export default function UploadStep({
           start: 0,
           end: safeEnd,
           autoBeatAlign: true
-        });
+      });
       }
     } catch (error) {
       console.error('Upload error:', error);
@@ -577,13 +577,13 @@ export default function UploadStep({
       </div>
 
       {showContinueButton && (
-        <Button
-          onClick={onNext}
+      <Button
+        onClick={onNext}
           disabled={!musicData || uploadingMusic || uploadingIntro || uploadingSource}
-          className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white py-6 text-lg rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          Continuer
-        </Button>
+        className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white py-6 text-lg rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        Continuer
+      </Button>
       )}
     </motion.div>
   );

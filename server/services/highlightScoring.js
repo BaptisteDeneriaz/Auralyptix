@@ -14,17 +14,50 @@ export async function analyzeVideoMotionAndVolume(sourceUrl, { stepSeconds = 0.5
     throw new Error('sourceUrl est requis pour analyzeVideoMotionAndVolume');
   }
 
-  // TODO (prochaine étape) :
-  // - lancer ffmpeg en mode analyse, sans sortie fichier
-  // - utiliser des filtres vidéo/audio pour extraire:
-  //   * un indicateur de mouvement entre frames
-  //   * un indicateur de volume audio
-  // - parser la sortie texte et construire un tableau de points
-  //
-  // Exemple de forme attendue:
-  // [{ t: 0.5, motion: 0.3, volume: 0.1 }, { t: 1.0, motion: 0.7, volume: 0.4 }, ...]
+  // Implémentation initiale basée sur l'analyse du volume audio via astats.
+  // Remarque : on met motion=0 pour l'instant, on pourra enrichir avec une
+  // vraie analyse vidéo plus tard.
 
-  return [];
+  const points = [];
+  const resetSeconds = Math.max(0.2, Number(stepSeconds) || 0.5);
+
+  return new Promise((resolve, reject) => {
+    let currentTime = 0;
+
+    const command = ffmpeg(sourceUrl)
+      .noVideo()
+      .audioFilters(`astats=metadata=1:reset=${resetSeconds}`)
+      .format('null')
+      .output('-')
+      .on('stderr', (line) => {
+        const text = line?.toString();
+        if (!text) return;
+
+        // On cherche les lignes contenant "Overall.RMS_level"
+        if (text.includes('Overall.RMS_level')) {
+          const match = text.match(/Overall\.RMS_level:\s*(-?\d+(\.\d+)?)/);
+          if (match) {
+            const db = parseFloat(match[1]);
+            // Convertir dB en valeur linéaire approximative (0..1)
+            const volume = Number.isFinite(db) ? Math.pow(10, db / 20) : 0;
+            currentTime += resetSeconds;
+            points.push({
+              t: currentTime,
+              motion: 0,
+              volume: Math.max(0, volume)
+            });
+          }
+        }
+      })
+      .on('end', () => {
+        resolve(points);
+      })
+      .on('error', (err) => {
+        reject(err);
+      });
+
+    command.run();
+  });
 }
 
 /**
@@ -40,17 +73,73 @@ export function buildHighlightSegments(points, targetDuration) {
 
   const duration = Math.max(5, Number(targetDuration) || 30);
 
-  // TODO (prochaine étape) :
-  // 1) Calculer score = alpha*motion + beta*volume pour chaque point
-  // 2) Regrouper en fenêtres temporelles (ex: 1s)
-  // 3) Trier par score décroissant et choisir les meilleurs segments
-  //    jusqu'à couvrir ~duration secondes
-  //
-  // Exemple de forme attendue:
-  // [{ start: 12.3, duration: 1.2, score: 0.85 }, ...]
+  // 1) Calculer un score pour chaque point
+  const alpha = 0.7; // poids du mouvement
+  const beta = 0.3; // poids du volume
+  const scoredPoints = points.map((p) => {
+    const motion = Number.isFinite(p.motion) ? Math.max(0, p.motion) : 0;
+    const volume = Number.isFinite(p.volume) ? Math.max(0, p.volume) : 0;
+    const score = alpha * motion + beta * volume;
+    return {
+      t: Number.isFinite(p.t) ? p.t : 0,
+      motion,
+      volume,
+      score
+    };
+  });
 
-  return [];
+  // 2) Regrouper en fenêtres de 1s
+  const windowSize = 1; // seconde
+  const windows = new Map();
+
+  for (const p of scoredPoints) {
+    const key = Math.floor(p.t / windowSize);
+    if (!windows.has(key)) {
+      windows.set(key, { start: key * windowSize, motion: 0, volume: 0, score: 0, count: 0 });
+    }
+    const w = windows.get(key);
+    w.motion += p.motion;
+    w.volume += p.volume;
+    w.score += p.score;
+    w.count += 1;
+  }
+
+  const windowSegments = Array.from(windows.values()).map((w) => {
+    const count = w.count || 1;
+    return {
+      start: w.start,
+      duration: windowSize,
+      score: w.score / count
+    };
+  });
+
+  // 3) Trier par score décroissant
+  windowSegments.sort((a, b) => b.score - a.score);
+
+  // 4) Sélectionner les meilleurs segments jusqu'à couvrir ~duration secondes
+  const selected = [];
+  let accumulated = 0;
+
+  for (const seg of windowSegments) {
+    if (accumulated >= duration) break;
+    // éviter les segments à score quasi nul
+    if (!Number.isFinite(seg.score) || seg.score <= 0) continue;
+
+    const remaining = duration - accumulated;
+    const clipDuration = Math.min(seg.duration, remaining);
+
+    selected.push({
+      start: seg.start,
+      duration: clipDuration,
+      score: seg.score
+    });
+
+    accumulated += clipDuration;
+  }
+
+  return selected;
 }
+
 
 /**
  * Fonction utilitaire haut-niveau: prend une vidéo et renvoie les meilleurs moments.
