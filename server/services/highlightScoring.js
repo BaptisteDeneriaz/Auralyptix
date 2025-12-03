@@ -23,6 +23,7 @@ export async function analyzeVideoMotionAndVolume(sourceUrl, { stepSeconds = 0.5
 
   return new Promise((resolve, reject) => {
     let currentTime = 0;
+    const debugLines = [];
 
     const command = ffmpeg(sourceUrl)
       .noVideo()
@@ -32,6 +33,15 @@ export async function analyzeVideoMotionAndVolume(sourceUrl, { stepSeconds = 0.5
       .on('stderr', (line) => {
         const text = line?.toString();
         if (!text) return;
+
+        // Conserver quelques lignes pour debug si besoin
+        const clean = text.trim();
+        if (clean) {
+          debugLines.push(clean);
+          if (debugLines.length > 30) {
+            debugLines.shift();
+          }
+        }
 
         // On cherche les lignes contenant "Overall.RMS_level"
         if (text.includes('Overall.RMS_level')) {
@@ -50,9 +60,15 @@ export async function analyzeVideoMotionAndVolume(sourceUrl, { stepSeconds = 0.5
         }
       })
       .on('end', () => {
+        if (!points.length && debugLines.length) {
+          console.log('[highlightScoring] astats stderr sample:', debugLines.slice(-10));
+        }
         resolve(points);
       })
       .on('error', (err) => {
+        if (debugLines.length) {
+          console.error('[highlightScoring] astats error, stderr sample:', debugLines.slice(-10));
+        }
         reject(err);
       });
 
